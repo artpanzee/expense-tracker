@@ -185,7 +185,7 @@
     <div style="text-align:right">
       <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Total</div>
       <div style="font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--accent)" id="grandTotal">₹0</div>
-      <div id="syncStatus" onclick="pullFromSheet()" style="font-size:11px;color:var(--muted);cursor:pointer;margin-top:2px"></div>
+      <div id="syncStatus" onclick="pullFromSheet()" style="font-size:11px;color:var(--muted);cursor:pointer;margin-top:2px">⟳ Tap to refresh</div>
     </div>
   </div>
 
@@ -914,16 +914,24 @@ function teachRule(id) {
 
   // Re-run the new rule against ALL unmatched expenses
   let fixed = 0;
+  const toSync = [];
   expenses.forEach(exp => {
     if (!exp.matched) {
       const re = categorize(exp.raw);
-      if (re.matched) { Object.assign(exp, re); fixed++; }
+      if (re.matched) {
+        Object.assign(exp, re);
+        fixed++;
+        toSync.push(exp);
+      }
     }
   });
   saveExpenses();
   delete selectedWords[id];
   render();
   snack(`Learned "${word}" → ${cat}${fixed > 1 ? `  ·  fixed ${fixed} expenses` : ""}`, true);
+
+  // Push corrected rows back to Sheet so it's not stuck saying Uncategorized
+  toSync.forEach(exp => updateSheetRow(exp));
 }
 
 function skipExp(id) {
@@ -934,9 +942,38 @@ function skipExp(id) {
 }
 
 function deleteExp(id) {
+  const exp = expenses.find(e => e.id === id);
+  if (!exp) return;
+  if (!confirm(`Delete "${exp.raw}" (₹${exp.amount})? This also removes it from your Sheet.`)) return;
+
   expenses = expenses.filter(e => e.id !== id);
   saveExpenses();
   render();
+
+  if (SCRIPT_URL) deleteSheetRow(exp);
+}
+
+function deleteSheetRow(exp) {
+  const expDate = exp.ts ? new Date(exp.ts) : new Date();
+  const row = {
+    action: "delete",
+    date:   expDate.toLocaleDateString("en-IN"),
+    raw:    exp.raw
+  };
+  fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body:   JSON.stringify(row)
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status !== "success") {
+        snack("Could not delete from Sheet: " + (data.message||"unknown"), false);
+      } else {
+        snack("Removed from Sheet ✓", true);
+      }
+    })
+    .catch(() => snack("Could not reach Sheet to delete row", false));
 }
 
 function deleteRule(key) {
@@ -996,6 +1033,33 @@ function saveExpenses() {
 // ─────────────────────────────────────────────
 //  GOOGLE SHEETS SYNC
 // ─────────────────────────────────────────────
+function updateSheetRow(exp) {
+  if (!SCRIPT_URL) return;
+  const expDate = exp.ts ? new Date(exp.ts) : new Date();
+  const row = {
+    action:    "update",
+    date:      expDate.toLocaleDateString("en-IN"),
+    raw:       exp.raw,
+    category:  exp.c,
+    sub:       exp.s,
+    matched:   exp.matched || ""
+  };
+  fetch(SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body:   JSON.stringify(row)
+  })
+    .then(res => res.json())
+    .then(data => {
+      if (data.status !== "success") {
+        snack("Could not update Sheet row for \"" + exp.raw + "\"", false);
+      }
+    })
+    .catch(() => {
+      snack("Could not reach Sheet to fix \"" + exp.raw + "\"", false);
+    });
+}
+
 function pushToSheet(exp) {
   if (!SCRIPT_URL) return;
   const expDate = exp.ts ? new Date(exp.ts) : new Date();
@@ -1091,9 +1155,9 @@ function setSyncStatus(status) {
   const el = document.getElementById("syncStatus");
   if (!el) return;
   const map = {
-    syncing: { text:"Syncing...", color:"var(--muted)" },
-    synced:  { text:"Synced", color:"var(--green)" },
-    error:   { text:"Sync failed — tap to retry", color:"var(--amber)" }
+    syncing: { text:"⟳ Syncing...", color:"var(--muted)" },
+    synced:  { text:"⟳ Synced", color:"var(--green)" },
+    error:   { text:"⟳ Sync failed — tap to retry", color:"var(--amber)" }
   };
   const s = map[status] || map.error;
   el.textContent = s.text;
