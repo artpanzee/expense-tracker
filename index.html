@@ -96,6 +96,7 @@
   .del-btn:hover { color: var(--red); }
 
   /* ── Uncategorized teach panel ── */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
   .teach-card { background: var(--surface); border: 1px solid var(--amber); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
   .teach-raw { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
   .teach-amt { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
@@ -258,8 +259,19 @@
     </div>
   </div>
 
-  <!-- Tab: Learned rules -->
+  <!-- Tab: Learned rules + Settings -->
   <div id="pane-rules" style="display:none">
+    <div class="card" style="margin:0 1rem 1rem">
+      <div class="teach-label" style="margin-bottom:8px">Google Sheets connection</div>
+      <div id="currentUrlStatus" style="font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-all"></div>
+      <div class="selects" style="margin-bottom:0">
+        <div class="new-input-wrap">
+          <input type="url" id="editScriptUrlInput" placeholder="Paste new Apps Script URL..."/>
+        </div>
+      </div>
+      <button class="teach-btn save" style="width:100%;margin-top:8px" onclick="updateScriptUrl()">Update URL</button>
+    </div>
+
     <div class="rules-list" id="rulesList">
       <div class="empty"><div class="empty-icon">🧠</div>No rules learned yet.<br/>Fix an uncategorized expense to teach the engine.</div>
     </div>
@@ -965,6 +977,7 @@ function showTab(name, btn) {
   document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
   activeTab = name;
+  if (name === "rules") renderUrlStatus();
 }
 
 function fmtTime(ts) {
@@ -1102,6 +1115,32 @@ function saveScriptUrl() {
   document.getElementById("setupBanner").style.display = "none";
   snack("Sheets sync enabled ✓", true);
   pullFromSheet();
+}
+
+function updateScriptUrl() {
+  const input = document.getElementById("editScriptUrlInput");
+  const url = input.value.trim();
+  if (!url) { snack("Paste a URL first", false); return; }
+  if (!url.startsWith("https://script.google.com")) {
+    snack("That doesn't look like a valid Apps Script URL", false); return;
+  }
+  SCRIPT_URL = url;
+  localStorage.setItem("scriptUrl", url);
+  input.value = "";
+  renderUrlStatus();
+  snack("Sheets URL updated ✓", true);
+  pullFromSheet();
+}
+
+function renderUrlStatus() {
+  const el = document.getElementById("currentUrlStatus");
+  if (!el) return;
+  if (SCRIPT_URL) {
+    const shortened = SCRIPT_URL.length > 50 ? SCRIPT_URL.slice(0, 35) + "..." + SCRIPT_URL.slice(-10) : SCRIPT_URL;
+    el.innerHTML = `Connected: <span style="color:var(--green)">${shortened}</span>`;
+  } else {
+    el.innerHTML = `<span style="color:var(--amber)">Not connected — paste a URL below</span>`;
+  }
 }
 
 // ─────────────────────────────────────────────
