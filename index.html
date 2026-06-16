@@ -106,8 +106,21 @@
   .selects { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .selects select { flex: 1; min-width: 130px; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); outline: none; cursor: pointer; }
   .selects select:focus { border-color: var(--accent); }
-  .new-input-wrap { flex: 1; min-width: 130px; position: relative; }
+  .lock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+  .lock-card { width: 100%; max-width: 320px; text-align: center; }
+  .lock-icon { font-size: 32px; margin-bottom: 1rem; }
+  .lock-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .lock-sub { font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; }
+  .lock-input { width: 100%; font-size: 16px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); outline: none; text-align: center; margin-bottom: 12px; letter-spacing: 2px; }
+  .lock-input:focus { border-color: var(--accent); }
+  .lock-btn { width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--accent); color: var(--accent-text); font-size: 14px; font-weight: 500; cursor: pointer; }
+  .lock-error { font-size: 12px; color: var(--red); margin-top: 10px; min-height: 16px; }
   .new-input-wrap input { width: 100%; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--accent); background: var(--surface2); color: var(--text); outline: none; }
+  .date-row { display: flex; gap: 6px; margin: 0 1rem 0.75rem; align-items: center; }
+  .date-chip { font-size: 12px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
+  .date-chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 500; }
+  .date-picker-wrap { position: relative; flex-shrink: 0; }
+  .date-picker-wrap input[type="date"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
   .similar-hint { margin-top: 6px; padding: 8px 10px; background: var(--amber-bg); border: 1px solid #4a3010; border-radius: var(--radius-sm); font-size: 12px; color: var(--amber); display: none; }
   .similar-hint.show { display: block; }
   .similar-hint button { background: var(--accent); color: var(--accent-text); border: none; border-radius: 5px; padding: 3px 9px; font-size: 11px; cursor: pointer; margin-left: 6px; font-weight: 500; }
@@ -150,7 +163,18 @@
 </head>
 <body>
 
-<div class="app">
+<div id="lockScreen" class="lock-screen">
+  <div class="lock-card">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-title">Expense Tracker</div>
+    <div class="lock-sub">Enter password to continue</div>
+    <input type="password" id="passwordInput" class="lock-input" placeholder="••••••" autocomplete="off" onkeydown="if(event.key==='Enter')checkPassword()"/>
+    <button class="lock-btn" onclick="checkPassword()">Unlock</button>
+    <div class="lock-error" id="lockError"></div>
+  </div>
+</div>
+
+<div class="app" id="appContent" style="display:none">
 
   <div class="header">
     <div>
@@ -177,6 +201,15 @@
   <div class="input-wrap">
     <input id="mainInput" type="text" placeholder='e.g. "ola 120" or "sent amma 2000"' autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')addExpense()"/>
     <button class="add-btn" onclick="addExpense()" aria-label="Add expense">+</button>
+  </div>
+
+  <div class="date-row" id="dateRow">
+    <button class="date-chip active" id="chip-today" onclick="setLogDate('today')">Today</button>
+    <button class="date-chip" id="chip-yesterday" onclick="setLogDate('yesterday')">Yesterday</button>
+    <div class="date-picker-wrap">
+      <button class="date-chip" id="chip-custom">📅 Pick date</button>
+      <input type="date" id="customDateInput" onchange="setLogDate('custom')"/>
+    </div>
   </div>
 
   <!-- Log result -->
@@ -244,6 +277,33 @@
 //  in the app or edit SCRIPT_URL directly here
 // ─────────────────────────────────────────────
 let SCRIPT_URL = localStorage.getItem("scriptUrl") || "";
+
+// ─────────────────────────────────────────────
+//  PASSWORD LOCK
+//  Change this to whatever password you want.
+//  Note: this is a simple deterrent, not real
+//  security — anyone who views the page source
+//  can see this value.
+// ─────────────────────────────────────────────
+const APP_PASSWORD = "money";
+
+function checkPassword() {
+  const input = document.getElementById("passwordInput");
+  const err = document.getElementById("lockError");
+  if (input.value === APP_PASSWORD) {
+    document.getElementById("lockScreen").style.display = "none";
+    document.getElementById("appContent").style.display = "block";
+    initApp();
+  } else {
+    err.textContent = "Incorrect password, try again";
+    input.value = "";
+    input.focus();
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("passwordInput").focus();
+});
 
 // ─────────────────────────────────────────────
 //  BASE RULE ENGINE
@@ -463,6 +523,26 @@ const PILL_CLASS = {
 let expenses   = JSON.parse(localStorage.getItem("expenses") || "[]");
 let learnedRules = JSON.parse(localStorage.getItem("learnedRules") || "{}");
 let activeTab  = "all";
+let selectedLogDate = new Date();
+
+function setLogDate(which) {
+  const today = new Date();
+  document.querySelectorAll(".date-chip").forEach(c => c.classList.remove("active"));
+
+  if (which === "today") {
+    selectedLogDate = today;
+    document.getElementById("chip-today").classList.add("active");
+  } else if (which === "yesterday") {
+    selectedLogDate = new Date(today.getTime() - 86400000);
+    document.getElementById("chip-yesterday").classList.add("active");
+  } else if (which === "custom") {
+    const val = document.getElementById("customDateInput").value;
+    if (!val) return;
+    selectedLogDate = new Date(val + "T12:00:00");
+    document.getElementById("chip-custom").classList.add("active");
+    document.getElementById("chip-custom").textContent = "📅 " + selectedLogDate.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
+  }
+}
 
 function allRules() { return {...BASE_RULES, ...learnedRules}; }
 
@@ -503,7 +583,8 @@ function addExpense() {
   const raw   = input.value.trim();
   if (!raw) return;
 
-  const exp = { ...categorize(raw), id: Date.now(), ts: new Date().toISOString() };
+  const ts = buildTimestamp(selectedLogDate);
+  const exp = { ...categorize(raw), id: Date.now(), ts: ts };
   expenses.unshift(exp);
   saveExpenses();
   input.value = "";
@@ -516,6 +597,13 @@ function addExpense() {
   }
 
   if (SCRIPT_URL) pushToSheet(exp);
+}
+
+function buildTimestamp(dateObj) {
+  const now = new Date();
+  const combined = new Date(dateObj);
+  combined.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+  return combined.toISOString();
 }
 
 function showLogResult(exp) {
@@ -897,18 +985,18 @@ function saveExpenses() {
 // ─────────────────────────────────────────────
 function pushToSheet(exp) {
   if (!SCRIPT_URL) return;
-  const now = new Date();
+  const expDate = exp.ts ? new Date(exp.ts) : new Date();
   const row = {
     id:        exp.id.toString(),
-    date:      now.toLocaleDateString("en-IN"),
-    time:      now.toLocaleTimeString("en-IN", {hour:"2-digit", minute:"2-digit"}),
+    date:      expDate.toLocaleDateString("en-IN"),
+    time:      expDate.toLocaleTimeString("en-IN", {hour:"2-digit", minute:"2-digit"}),
     raw:       exp.raw,
     amount:    exp.amount,
     category:  exp.c,
     sub:       exp.s,
     matched:   exp.matched || "",
-    week:      "W" + getWeekNum(now),
-    month:     now.toLocaleString("en-IN", {month:"short", year:"numeric"})
+    week:      "W" + getWeekNum(expDate),
+    month:     expDate.toLocaleString("en-IN", {month:"short", year:"numeric"})
   };
   setSyncStatus("syncing");
   fetch(SCRIPT_URL, {
@@ -916,7 +1004,10 @@ function pushToSheet(exp) {
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body:   JSON.stringify(row)
   })
-    .then(res => res.json())
+    .then(res => {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return res.json();
+    })
     .then(data => {
       if (data.status === "success") {
         setSyncStatus("synced");
@@ -927,7 +1018,7 @@ function pushToSheet(exp) {
     })
     .catch(err => {
       setSyncStatus("error");
-      snack("Could not reach Sheet — check your connection", false);
+      snack("Sync error: " + err.message, false);
     });
 }
 
@@ -972,8 +1063,13 @@ function pullFromSheet() {
 
 function parseSheetDate(dateStr, timeStr) {
   try {
-    const [d,m,y] = (dateStr||"").split("/");
-    if (d && m && y) return new Date(`${y}-${m}-${d}`).toISOString();
+    if (!dateStr) return new Date().toISOString();
+    const parts = dateStr.split("/");
+    if (parts.length === 3) {
+      const [d,m,y] = parts;
+      const dt = new Date(`${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`);
+      if (!isNaN(dt)) return dt.toISOString();
+    }
   } catch(e) {}
   return new Date().toISOString();
 }
@@ -1032,25 +1128,27 @@ function snack(msg, ok) {
 }
 
 // ─────────────────────────────────────────────
-//  INIT
+//  INIT — runs only after password is entered correctly
 // ─────────────────────────────────────────────
-document.getElementById("dateLabel").textContent =
-  new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"});
+function initApp() {
+  document.getElementById("dateLabel").textContent =
+    new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"});
 
-if (SCRIPT_URL) {
-  document.getElementById("setupBanner").style.display = "none";
-  pullFromSheet();
+  if (SCRIPT_URL) {
+    document.getElementById("setupBanner").style.display = "none";
+    pullFromSheet();
+  }
+
+  const qc = document.getElementById("quickChips");
+  QUICK_EXAMPLES.forEach(q => {
+    const c = document.createElement("button");
+    c.className = "chip"; c.textContent = q;
+    c.onclick = () => { document.getElementById("mainInput").value = q; addExpense(); };
+    qc.appendChild(c);
+  });
+
+  render();
 }
-
-const qc = document.getElementById("quickChips");
-QUICK_EXAMPLES.forEach(q => {
-  const c = document.createElement("button");
-  c.className = "chip"; c.textContent = q;
-  c.onclick = () => { document.getElementById("mainInput").value = q; addExpense(); };
-  qc.appendChild(c);
-});
-
-render();
 </script>
 </body>
 </html>
