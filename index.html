@@ -247,6 +247,7 @@
 
   <!-- Tab: All expenses -->
   <div id="pane-all">
+    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing last 7 days · full history is in your Sheet</div>
     <div class="exp-list" id="expList">
       <div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>
     </div>
@@ -289,6 +290,20 @@
 //  in the app or edit SCRIPT_URL directly here
 // ─────────────────────────────────────────────
 let SCRIPT_URL = localStorage.getItem("scriptUrl") || "";
+
+// ─────────────────────────────────────────────
+//  SYNC QUEUE — ensures every write to the Sheet
+//  (insert / update / delete) happens one at a
+//  time, never overlapping. Apps Script can
+//  corrupt row-matching if multiple requests hit
+//  it simultaneously, since each request re-reads
+//  the whole sheet before acting.
+// ─────────────────────────────────────────────
+let syncQueue = Promise.resolve();
+function queueSync(fn) {
+  syncQueue = syncQueue.then(fn).catch(() => {});
+  return syncQueue;
+}
 
 // ─────────────────────────────────────────────
 //  PASSWORD LOCK
@@ -930,7 +945,8 @@ function teachRule(id) {
   render();
   snack(`Learned "${word}" → ${cat}${fixed > 1 ? `  ·  fixed ${fixed} expenses` : ""}`, true);
 
-  // Push corrected rows back to Sheet so it's not stuck saying Uncategorized
+  // Push corrected rows back to Sheet — updateSheetRow is queue-safe,
+  // so calling it for each one in order will never overlap requests.
   toSync.forEach(exp => updateSheetRow(exp));
 }
 
@@ -954,26 +970,29 @@ function deleteExp(id) {
 }
 
 function deleteSheetRow(exp) {
-  const expDate = exp.ts ? new Date(exp.ts) : new Date();
-  const row = {
-    action: "delete",
-    date:   expDate.toLocaleDateString("en-IN"),
-    raw:    exp.raw
-  };
-  fetch(SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body:   JSON.stringify(row)
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status !== "success") {
-        snack("Could not delete from Sheet: " + (data.message||"unknown"), false);
-      } else {
-        snack("Removed from Sheet ✓", true);
-      }
+  queueSync(() => new Promise(resolve => {
+    const expDate = exp.ts ? new Date(exp.ts) : new Date();
+    const row = {
+      action: "delete",
+      date:   expDate.toLocaleDateString("en-IN"),
+      raw:    exp.raw
+    };
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body:   JSON.stringify(row)
     })
-    .catch(() => snack("Could not reach Sheet to delete row", false));
+      .then(res => res.json())
+      .then(data => {
+        if (data.status !== "success") {
+          snack("Could not delete from Sheet: " + (data.message||"unknown"), false);
+        } else {
+          snack("Removed from Sheet ✓", true);
+        }
+        resolve();
+      })
+      .catch(() => { snack("Could not reach Sheet to delete row", false); resolve(); });
+  }));
 }
 
 function deleteRule(key) {
@@ -1035,68 +1054,76 @@ function saveExpenses() {
 // ─────────────────────────────────────────────
 function updateSheetRow(exp) {
   if (!SCRIPT_URL) return;
-  const expDate = exp.ts ? new Date(exp.ts) : new Date();
-  const row = {
-    action:    "update",
-    date:      expDate.toLocaleDateString("en-IN"),
-    raw:       exp.raw,
-    category:  exp.c,
-    sub:       exp.s,
-    matched:   exp.matched || ""
-  };
-  fetch(SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body:   JSON.stringify(row)
-  })
-    .then(res => res.json())
-    .then(data => {
-      if (data.status !== "success") {
-        snack("Could not update Sheet row for \"" + exp.raw + "\"", false);
-      }
+  queueSync(() => new Promise(resolve => {
+    const expDate = exp.ts ? new Date(exp.ts) : new Date();
+    const row = {
+      action:    "update",
+      date:      expDate.toLocaleDateString("en-IN"),
+      raw:       exp.raw,
+      category:  exp.c,
+      sub:       exp.s,
+      matched:   exp.matched || ""
+    };
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body:   JSON.stringify(row)
     })
-    .catch(() => {
-      snack("Could not reach Sheet to fix \"" + exp.raw + "\"", false);
-    });
+      .then(res => res.json())
+      .then(data => {
+        if (data.status !== "success") {
+          snack("Could not update Sheet row for \"" + exp.raw + "\"", false);
+        }
+        resolve();
+      })
+      .catch(() => {
+        snack("Could not reach Sheet to fix \"" + exp.raw + "\"", false);
+        resolve();
+      });
+  }));
 }
 
 function pushToSheet(exp) {
   if (!SCRIPT_URL) return;
-  const expDate = exp.ts ? new Date(exp.ts) : new Date();
-  const row = {
-    id:        exp.id.toString(),
-    date:      expDate.toLocaleDateString("en-IN"),
-    time:      expDate.toLocaleTimeString("en-IN", {hour:"2-digit", minute:"2-digit"}),
-    raw:       exp.raw,
-    amount:    exp.amount,
-    category:  exp.c,
-    sub:       exp.s,
-    matched:   exp.matched || "",
-    week:      "W" + getWeekNum(expDate),
-    month:     expDate.toLocaleString("en-IN", {month:"short", year:"numeric"})
-  };
   setSyncStatus("syncing");
-  fetch(SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body:   JSON.stringify(row)
-  })
-    .then(res => {
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      return res.json();
+  queueSync(() => new Promise(resolve => {
+    const expDate = exp.ts ? new Date(exp.ts) : new Date();
+    const row = {
+      id:        exp.id.toString(),
+      date:      expDate.toLocaleDateString("en-IN"),
+      time:      expDate.toLocaleTimeString("en-IN", {hour:"2-digit", minute:"2-digit"}),
+      raw:       exp.raw,
+      amount:    exp.amount,
+      category:  exp.c,
+      sub:       exp.s,
+      matched:   exp.matched || "",
+      week:      "W" + getWeekNum(expDate),
+      month:     expDate.toLocaleString("en-IN", {month:"short", year:"numeric"})
+    };
+    fetch(SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body:   JSON.stringify(row)
     })
-    .then(data => {
-      if (data.status === "success") {
-        setSyncStatus("synced");
-      } else {
+      .then(res => {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(data => {
+        if (data.status === "success") {
+          setSyncStatus("synced");
+        } else {
+          setSyncStatus("error");
+          snack("Sync failed: " + (data.message || "unknown error"), false);
+        }
+        resolve();
+      })
+      .catch(err => {
         setSyncStatus("error");
-        snack("Sync failed: " + (data.message || "unknown error"), false);
-      }
-    })
-    .catch(err => {
-      setSyncStatus("error");
-      snack("Sync error: " + err.message, false);
-    });
+        snack("Sync error: " + err.message, false);
+        resolve();
+      });
+  }));
 }
 
 function pullFromSheet() {
@@ -1111,14 +1138,17 @@ function pullFromSheet() {
       }
       const remote = data.expenses || [];
       const localIds = new Set(expenses.map(e => e.id.toString()));
+      const weekAgo = Date.now() - (7 * 86400000);
       let added = 0;
 
       remote.forEach(r => {
         if (!r.id || localIds.has(r.id.toString())) return;
         const recat = categorize(r.raw || "");
+        const ts = parseSheetDate(r.date, r.time);
+        if (new Date(ts).getTime() < weekAgo) return; // skip anything older than 7 days
         expenses.push({
           id: r.id,
-          ts: parseSheetDate(r.date, r.time),
+          ts: ts,
           raw: r.raw,
           amount: parseFloat(r.amount) || 0,
           c: r.category || recat.c,
@@ -1128,6 +1158,11 @@ function pullFromSheet() {
         });
         added++;
       });
+
+      // Also trim any local expenses older than 7 days —
+      // they still live permanently in the Sheet, just not
+      // kept in the app's local view to stay lightweight.
+      expenses = expenses.filter(e => new Date(e.ts).getTime() >= weekAgo);
 
       expenses.sort((a,b) => new Date(b.ts) - new Date(a.ts));
       saveExpenses();
