@@ -1223,8 +1223,14 @@ function setSyncStatus(status) {
 }
 
 function getWeekNum(d) {
-  const s = new Date(d.getFullYear(), 0, 1);
-  return Math.ceil(((d - s) / 86400000 + s.getDay() + 1) / 7);
+  // Standard Monday-start week number, consistent every year —
+  // no dependency on what weekday Jan 1st falls on, so this can't
+  // silently drift between code versions like the old formula could.
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = date.getUTCDay() || 7; // Sunday becomes 7 instead of 0
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum); // shift to the Thursday of this week
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
 }
 
 function saveScriptUrl() {
