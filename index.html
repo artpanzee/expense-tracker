@@ -1132,7 +1132,13 @@ function pullFromSheet() {
       const weekAgo = todayMidnight.getTime() - (6 * 86400000); // today + 6 days back = 7 days total
       let added = 0;
 
-      remote.forEach(r => {
+      // remote[] arrives in the Sheet's natural top-to-bottom order, which
+      // is chronological (oldest first, since new rows are appended at the
+      // bottom). We use that array index as a reliable "recency rank" —
+      // far more trustworthy than the date-only timestamp, since the Sheet
+      // has no Time column and same-day entries would otherwise be
+      // indistinguishable.
+      remote.forEach((r, sheetIndex) => {
         if (!r.id || localIds.has(r.id.toString())) return;
         const recat = categorize(r.raw || "");
         const ts = parseSheetDate(r.date, r.time);
@@ -1141,6 +1147,7 @@ function pullFromSheet() {
         expenses.push({
           id: r.id,
           ts: ts,
+          sheetOrder: sheetIndex,
           raw: r.raw,
           amount: parseFloat(r.amount) || 0,
           c: r.category || recat.c,
@@ -1159,7 +1166,19 @@ function pullFromSheet() {
         return d.getTime() >= weekAgo;
       });
 
-      expenses.sort((a,b) => new Date(b.ts) - new Date(a.ts));
+      // Sort newest first: prefer sheetOrder (reliable, from the Sheet's
+      // actual row position) when both items have it; locally-added items
+      // not yet synced (no sheetOrder) are pushed via unshift so they
+      // already sit at the front — leave those as-is.
+      expenses.sort((a, b) => {
+        if (a.sheetOrder !== undefined && b.sheetOrder !== undefined) {
+          return b.sheetOrder - a.sheetOrder;
+        }
+        if (a.sheetOrder === undefined && b.sheetOrder === undefined) {
+          return new Date(b.ts) - new Date(a.ts);
+        }
+        return a.sheetOrder === undefined ? -1 : 1; // unsynced local items first
+      });
       saveExpenses();
       render();
       setSyncStatus("synced");
