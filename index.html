@@ -216,9 +216,6 @@
   <!-- Log result -->
   <div class="log-result" id="logResult"></div>
 
-  <!-- Quick chips -->
-  <div class="chips" id="quickChips"></div>
-
   <!-- Metrics -->
   <div class="metrics">
     <div class="metric">
@@ -247,7 +244,7 @@
 
   <!-- Tab: All expenses -->
   <div id="pane-all">
-    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing last 7 days · full history is in your Sheet</div>
+    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing 5 most recent · full history is in your Sheet</div>
     <div class="exp-list" id="expList">
       <div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>
     </div>
@@ -532,12 +529,6 @@ const CATEGORIES = {
   "Personal Care":["Salon","Grooming","Laundry"]
 };
 
-const QUICK_EXAMPLES = [
-  "ola 120","darshini lunch 90","sent amma 2000",
-  "dmart groceries 1200","rent 8000","pvr movie 400",
-  "bmtc 15","airtel 299","blinkit 340","rapido 80"
-];
-
 const PILL_CLASS = {
   "Food":"pill-food","Groceries":"pill-groceries","Transport":"pill-transport",
   "Utilities":"pill-utilities","Shopping":"pill-shopping","Transfers":"pill-transfers",
@@ -664,7 +655,7 @@ function renderAll() {
     el.innerHTML = '<div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>';
     return;
   }
-  el.innerHTML = expenses.map(exp => `
+  el.innerHTML = expenses.slice(0, 5).map(exp => `
     <div class="exp-row">
       <div class="exp-icon">${exp.e}</div>
       <div class="exp-body">
@@ -1135,14 +1126,18 @@ function pullFromSheet() {
       }
       const remote = data.expenses || [];
       const localIds = new Set(expenses.map(e => e.id.toString()));
-      const weekAgo = Date.now() - (7 * 86400000);
+      // Compare by calendar day, not exact timestamp, so a date parsed
+      // as midnight isn't wrongly excluded by today's current time-of-day.
+      const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
+      const weekAgo = todayMidnight.getTime() - (6 * 86400000); // today + 6 days back = 7 days total
       let added = 0;
 
       remote.forEach(r => {
         if (!r.id || localIds.has(r.id.toString())) return;
         const recat = categorize(r.raw || "");
         const ts = parseSheetDate(r.date, r.time);
-        if (new Date(ts).getTime() < weekAgo) return; // skip anything older than 7 days
+        const tsDay = new Date(ts); tsDay.setHours(0,0,0,0);
+        if (tsDay.getTime() < weekAgo) return; // skip anything older than 7 days
         expenses.push({
           id: r.id,
           ts: ts,
@@ -1156,10 +1151,13 @@ function pullFromSheet() {
         added++;
       });
 
-      // Also trim any local expenses older than 7 days —
+      // Also trim any local expenses older than 7 days (by calendar day) —
       // they still live permanently in the Sheet, just not
       // kept in the app's local view to stay lightweight.
-      expenses = expenses.filter(e => new Date(e.ts).getTime() >= weekAgo);
+      expenses = expenses.filter(e => {
+        const d = new Date(e.ts); d.setHours(0,0,0,0);
+        return d.getTime() >= weekAgo;
+      });
 
       expenses.sort((a,b) => new Date(b.ts) - new Date(a.ts));
       saveExpenses();
@@ -1280,18 +1278,11 @@ function initApp() {
 
   if (SCRIPT_URL) {
     document.getElementById("setupBanner").style.display = "none";
+    document.getElementById("grandTotal").textContent = "…";
     pullFromSheet();
+  } else {
+    render();
   }
-
-  const qc = document.getElementById("quickChips");
-  QUICK_EXAMPLES.forEach(q => {
-    const c = document.createElement("button");
-    c.className = "chip"; c.textContent = q;
-    c.onclick = () => { document.getElementById("mainInput").value = q; addExpense(); };
-    qc.appendChild(c);
-  });
-
-  render();
 }
 </script>
 </body>
