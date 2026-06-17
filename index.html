@@ -1156,16 +1156,30 @@ function pullFromSheet() {
       // instead of comparing dates/timestamps — sidesteps all timezone and
       // midnight edge cases entirely, since Week is one stable label.
       const thisWeek = currentWeekString();
-      const thisMonth = currentMonthString();
+      const now = new Date();
+      const thisYear = now.getFullYear();
+      const thisMonthNum = now.getMonth(); // 0-11
       let added = 0;
 
       // Monthly total comes from the FULL remote dataset (every row in the
       // Sheet for the current month), independent of the week-scoped local
       // cache — since expenses[] only ever holds the current week's rows.
+      // NOTE: Google Sheets silently auto-converts a text value like
+      // "Jun 2026" into an actual Date object if it looks date-like, so we
+      // can't reliably string-match r.month. Instead we parse it (handling
+      // both a real date and a fallback text format) and compare the
+      // actual year+month numbers, which is immune to that conversion.
+      function isSameMonth(monthVal) {
+        if (!monthVal) return false;
+        const d = new Date(monthVal);
+        if (!isNaN(d)) return d.getFullYear() === thisYear && d.getMonth() === thisMonthNum;
+        return false; // unparseable text, skip rather than risk a wrong match
+      }
+
       monthlyTotal = remote
-        .filter(r => (r.month || "").trim() === thisMonth)
+        .filter(r => isSameMonth(r.month))
         .reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-      monthlyCount = remote.filter(r => (r.month || "").trim() === thisMonth).length;
+      monthlyCount = remote.filter(r => isSameMonth(r.month)).length;
 
       // remote[] arrives in the Sheet's natural top-to-bottom order, which
       // is chronological (oldest first, since new rows are appended at the
