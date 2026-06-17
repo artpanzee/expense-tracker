@@ -183,7 +183,7 @@
       <div class="header-sub" id="dateLabel"></div>
     </div>
     <div style="text-align:right">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Total</div>
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">This Week</div>
       <div style="font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--accent)" id="grandTotal">₹0</div>
       <div id="syncStatus" onclick="pullFromSheet()" style="font-size:11px;color:var(--muted);cursor:pointer;margin-top:2px">⟳ Tap to refresh</div>
     </div>
@@ -217,10 +217,14 @@
   <div class="log-result" id="logResult"></div>
 
   <!-- Metrics -->
-  <div class="metrics">
+  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
     <div class="metric">
       <div class="metric-label">Today</div>
       <div class="metric-val accent" id="m-today">₹0</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">This month</div>
+      <div class="metric-val" id="m-month">₹—</div>
     </div>
     <div class="metric">
       <div class="metric-label">Entries</div>
@@ -244,7 +248,7 @@
 
   <!-- Tab: All expenses -->
   <div id="pane-all">
-    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing 5 most recent · full history is in your Sheet</div>
+    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing this week's last 5 · full history is in your Sheet</div>
     <div class="exp-list" id="expList">
       <div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>
     </div>
@@ -542,6 +546,8 @@ let expenses   = JSON.parse(localStorage.getItem("expenses") || "[]");
 let learnedRules = JSON.parse(localStorage.getItem("learnedRules") || "{}");
 let activeTab  = "all";
 let selectedLogDate = new Date();
+let monthlyTotal = null;
+let monthlyCount = null;
 
 function setLogDate(which) {
   const today = new Date();
@@ -596,14 +602,33 @@ function categorize(raw) {
 // ─────────────────────────────────────────────
 //  ADD EXPENSE
 // ─────────────────────────────────────────────
+function currentWeekString() {
+  return "W" + getWeekNum(new Date());
+}
+
+function currentMonthString() {
+  return new Date().toLocaleString("en-IN", { month: "short", year: "numeric" });
+}
+
+function trimToWindow() {
+  // Keep only expenses from the current week, matched by the Week string
+  // (e.g. "W25") rather than exact dates — avoids all timezone/midnight
+  // edge cases entirely, since Week is a single stable label per entry.
+  const thisWeek = currentWeekString();
+  expenses = expenses.filter(e => e.week === thisWeek);
+}
+
 function addExpense() {
   const input = document.getElementById("mainInput");
   const raw   = input.value.trim();
   if (!raw) return;
 
   const ts = buildTimestamp(selectedLogDate);
-  const exp = { ...categorize(raw), id: Date.now(), ts: ts };
+  const week = "W" + getWeekNum(selectedLogDate);
+  const month = selectedLogDate.toLocaleString("en-IN", { month: "short", year: "numeric" });
+  const exp = { ...categorize(raw), id: Date.now(), ts: ts, week: week, month: month };
   expenses.unshift(exp);
+  trimToWindow();
   saveExpenses();
   input.value = "";
 
@@ -1003,6 +1028,7 @@ function updateMetrics() {
 
   document.getElementById("grandTotal").textContent = "₹" + total.toLocaleString();
   document.getElementById("m-today").textContent    = "₹" + todayTotal.toLocaleString();
+  document.getElementById("m-month").textContent    = monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString();
   document.getElementById("m-count").textContent    = expenses.length;
   document.getElementById("m-rate").textContent     = expenses.length
     ? Math.round(matched / expenses.length * 100) + "%"  : "—";
@@ -1085,8 +1111,8 @@ function pushToSheet(exp) {
       category:  exp.c,
       sub:       exp.s,
       matched:   exp.matched || "",
-      week:      "W" + getWeekNum(expDate),
-      month:     expDate.toLocaleString("en-IN", {month:"short", year:"numeric"})
+      week:      exp.week || ("W" + getWeekNum(expDate)),
+      month:     exp.month || expDate.toLocaleString("en-IN", {month:"short", year:"numeric"})
     };
     fetch(SCRIPT_URL, {
       method: "POST",
@@ -1126,11 +1152,20 @@ function pullFromSheet() {
       }
       const remote = data.expenses || [];
       const localIds = new Set(expenses.map(e => e.id.toString()));
-      // Compare by calendar day, not exact timestamp, so a date parsed
-      // as midnight isn't wrongly excluded by today's current time-of-day.
-      const todayMidnight = new Date(); todayMidnight.setHours(0,0,0,0);
-      const weekAgo = todayMidnight.getTime() - (6 * 86400000); // today + 6 days back = 7 days total
+      // Filter by the Week string already stored in the Sheet (e.g. "W25")
+      // instead of comparing dates/timestamps — sidesteps all timezone and
+      // midnight edge cases entirely, since Week is one stable label.
+      const thisWeek = currentWeekString();
+      const thisMonth = currentMonthString();
       let added = 0;
+
+      // Monthly total comes from the FULL remote dataset (every row in the
+      // Sheet for the current month), independent of the week-scoped local
+      // cache — since expenses[] only ever holds the current week's rows.
+      monthlyTotal = remote
+        .filter(r => (r.month || "").trim() === thisMonth)
+        .reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+      monthlyCount = remote.filter(r => (r.month || "").trim() === thisMonth).length;
 
       // remote[] arrives in the Sheet's natural top-to-bottom order, which
       // is chronological (oldest first, since new rows are appended at the
@@ -1140,13 +1175,14 @@ function pullFromSheet() {
       // indistinguishable.
       remote.forEach((r, sheetIndex) => {
         if (!r.id || localIds.has(r.id.toString())) return;
+        if ((r.week || "").trim() !== thisWeek) return; // only this week's rows
         const recat = categorize(r.raw || "");
         const ts = parseSheetDate(r.date, r.time);
-        const tsDay = new Date(ts); tsDay.setHours(0,0,0,0);
-        if (tsDay.getTime() < weekAgo) return; // skip anything older than 7 days
         expenses.push({
           id: r.id,
           ts: ts,
+          week: r.week,
+          month: r.month,
           sheetOrder: sheetIndex,
           raw: r.raw,
           amount: parseFloat(r.amount) || 0,
@@ -1158,13 +1194,10 @@ function pullFromSheet() {
         added++;
       });
 
-      // Also trim any local expenses older than 7 days (by calendar day) —
-      // they still live permanently in the Sheet, just not
-      // kept in the app's local view to stay lightweight.
-      expenses = expenses.filter(e => {
-        const d = new Date(e.ts); d.setHours(0,0,0,0);
-        return d.getTime() >= weekAgo;
-      });
+      // Also trim any local expenses not in the current week — they still
+      // live permanently in the Sheet, just not kept in the app's local
+      // view to stay lightweight.
+      expenses = expenses.filter(e => e.week === thisWeek);
 
       // Sort newest first: prefer sheetOrder (reliable, from the Sheet's
       // actual row position) when both items have it; locally-added items
