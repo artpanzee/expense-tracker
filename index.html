@@ -1,1361 +1,169 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="theme-color" content="#0f0f0f"/>
-<title>Expense Tracker</title>
-<link rel="manifest" href="#"/>
-<style>
-  :root {
-    --bg: #0f0f0f;
-    --surface: #1a1a1a;
-    --surface2: #242424;
-    --border: #2e2e2e;
-    --text: #f0f0f0;
-    --muted: #888;
-    --faint: #444;
-    --accent: #c8f04a;
-    --accent-dim: #a8cc35;
-    --accent-text: #0f0f0f;
-    --red: #ff5555;
-    --red-bg: #2a1515;
-    --amber: #f0a830;
-    --amber-bg: #251e10;
-    --green: #4ade80;
-    --green-bg: #0f2218;
-    --radius: 10px;
-    --radius-sm: 6px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 15px; line-height: 1.5; min-height: 100vh; }
-
-  /* ── Layout ── */
-  .app { max-width: 480px; margin: 0 auto; padding: 0 0 6rem; }
-  .header { padding: 1.25rem 1.25rem 0.75rem; display: flex; align-items: center; justify-content: space-between; }
-  .header-title { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
-  .header-sub { font-size: 13px; color: var(--muted); }
-  .section { padding: 0 1rem; margin-bottom: 1rem; }
-
-  /* ── Input ── */
-  .input-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 4px 4px 14px; display: flex; align-items: center; gap: 8px; margin: 0 1rem 1rem; transition: border-color .15s; }
-  .input-wrap:focus-within { border-color: var(--accent); }
-  .input-wrap input { flex: 1; background: none; border: none; outline: none; font-size: 16px; color: var(--text); padding: 8px 0; }
-  .input-wrap input::placeholder { color: var(--faint); font-size: 15px; }
-  .add-btn { background: var(--accent); color: var(--accent-text); border: none; border-radius: 7px; width: 38px; height: 38px; font-size: 22px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-weight: 300; flex-shrink: 0; transition: background .15s; }
-  .add-btn:hover { background: var(--accent-dim); }
-  .add-btn:active { transform: scale(0.95); }
-
-  /* ── Quick chips ── */
-  .chips { display: flex; gap: 6px; overflow-x: auto; padding: 0 1rem 0.5rem; scrollbar-width: none; }
-  .chips::-webkit-scrollbar { display: none; }
-  .chip { flex-shrink: 0; font-size: 12px; padding: 5px 11px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); background: var(--surface); cursor: pointer; white-space: nowrap; transition: all .12s; }
-  .chip:hover { border-color: var(--accent); color: var(--accent); }
-
-  /* ── Toast result ── */
-  .log-result { margin: 0 1rem 0.75rem; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; display: none; }
-  .log-result.matched { background: var(--green-bg); border: 1px solid #1a4a2e; color: var(--green); }
-  .log-result.unmatched { background: var(--amber-bg); border: 1px solid #4a3010; color: var(--amber); }
-
-  /* ── Metrics ── */
-  .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0 1rem 1rem; }
-  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
-  .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-  .metric-val { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
-  .metric-val.accent { color: var(--accent); }
-
-  /* ── Tabs ── */
-  .tabs { display: flex; padding: 0 1rem; gap: 4px; margin-bottom: 1rem; }
-  .tab { flex: 1; padding: 8px; font-size: 13px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); cursor: pointer; text-align: center; transition: all .15s; position: relative; }
-  .tab.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 500; }
-  .tab .badge { position: absolute; top: -6px; right: -6px; background: var(--red); color: #fff; font-size: 10px; min-width: 18px; height: 18px; border-radius: 99px; display: none; align-items: center; justify-content: center; font-weight: 600; }
-  .tab .badge.show { display: flex; }
-
-  /* ── Expense rows ── */
-  .exp-list { padding: 0 1rem; }
-  .exp-row { display: flex; align-items: flex-start; gap: 10px; padding: 11px 0; border-bottom: 1px solid var(--border); }
-  .exp-row:last-child { border-bottom: none; }
-  .exp-icon { width: 36px; height: 36px; border-radius: 8px; background: var(--surface2); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
-  .exp-body { flex: 1; min-width: 0; }
-  .exp-raw { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .exp-meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
-  .exp-right { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; }
-  .exp-amt { font-size: 15px; font-weight: 600; letter-spacing: -0.3px; }
-  .pill { font-size: 11px; padding: 2px 8px; border-radius: 99px; white-space: nowrap; font-weight: 500; }
-  .pill-food { background: #0f2a1a; color: #4ade80; }
-  .pill-groceries { background: #142010; color: #86efac; }
-  .pill-transport { background: #0f1e38; color: #60a5fa; }
-  .pill-utilities { background: #1e1e18; color: #d4d4aa; }
-  .pill-shopping { background: #2a1022; color: #e879f9; }
-  .pill-transfers { background: #251c0a; color: #fbbf24; }
-  .pill-health { background: #2a0f0f; color: #f87171; }
-  .pill-entertainment { background: #1a0f2e; color: #a78bfa; }
-  .pill-personal { background: #2a1510; color: #fb923c; }
-  .pill-uncat { background: #1e1e1e; color: #888; }
-  .del-btn { background: none; border: none; color: var(--faint); cursor: pointer; font-size: 16px; padding: 2px; line-height: 1; }
-  .del-btn:hover { color: var(--red); }
-
-  /* ── Uncategorized teach panel ── */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; }
-  .teach-card { background: var(--surface); border: 1px solid var(--amber); border-radius: var(--radius); padding: 14px; margin-bottom: 10px; }
-  .teach-raw { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
-  .teach-amt { font-size: 13px; color: var(--muted); margin-bottom: 12px; }
-  .teach-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
-  .word-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
-  .word-chip { font-size: 13px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); background: var(--surface2); cursor: pointer; transition: all .12s; }
-  .word-chip.active { border-color: var(--accent); color: var(--accent); background: #1a2200; }
-  .selects { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-  .selects select { flex: 1; min-width: 130px; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); outline: none; cursor: pointer; }
-  .selects select:focus { border-color: var(--accent); }
-  .lock-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
-  .lock-card { width: 100%; max-width: 320px; text-align: center; }
-  .lock-icon { font-size: 32px; margin-bottom: 1rem; }
-  .lock-title { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
-  .lock-sub { font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; }
-  .lock-input { width: 100%; font-size: 16px; padding: 12px 14px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); color: var(--text); outline: none; text-align: center; margin-bottom: 12px; letter-spacing: 2px; }
-  .lock-input:focus { border-color: var(--accent); }
-  .lock-btn { width: 100%; padding: 12px; border-radius: var(--radius); border: none; background: var(--accent); color: var(--accent-text); font-size: 14px; font-weight: 500; cursor: pointer; }
-  .lock-error { font-size: 12px; color: var(--red); margin-top: 10px; min-height: 16px; }
-  .new-input-wrap input { width: 100%; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--accent); background: var(--surface2); color: var(--text); outline: none; }
-  .date-row { display: flex; gap: 6px; margin: 0 1rem 0.75rem; align-items: center; }
-  .date-chip { font-size: 12px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
-  .date-chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 500; }
-  .date-picker-wrap { position: relative; flex-shrink: 0; }
-  .date-picker-wrap input[type="date"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-  .similar-hint { margin-top: 6px; padding: 8px 10px; background: var(--amber-bg); border: 1px solid #4a3010; border-radius: var(--radius-sm); font-size: 12px; color: var(--amber); display: none; }
-  .similar-hint.show { display: block; }
-  .similar-hint button { background: var(--accent); color: var(--accent-text); border: none; border-radius: 5px; padding: 3px 9px; font-size: 11px; cursor: pointer; margin-left: 6px; font-weight: 500; }
-  .similar-hint .use-new { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
-  .teach-actions { display: flex; gap: 8px; }
-  .teach-btn { flex: 1; padding: 9px; font-size: 13px; border-radius: var(--radius-sm); border: none; cursor: pointer; font-weight: 500; transition: all .15s; }
-  .teach-btn.save { background: var(--accent); color: var(--accent-text); }
-  .teach-btn.save:hover { background: var(--accent-dim); }
-  .teach-btn.skip { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
-
-  /* ── Learned rules ── */
-  .rules-list { padding: 0 1rem; }
-  .rule-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border); }
-  .rule-row:last-child { border-bottom: none; }
-  .rule-keyword { font-size: 13px; font-weight: 600; color: var(--accent); min-width: 90px; }
-  .rule-arrow { color: var(--faint); font-size: 13px; }
-  .rule-cat { font-size: 13px; color: var(--muted); flex: 1; }
-  .export-btn { display: flex; align-items: center; gap: 6px; margin: 1rem 1rem 0; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-size: 13px; cursor: pointer; width: calc(100% - 2rem); justify-content: center; transition: all .15s; }
-  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
-
-  /* ── Empty states ── */
-  .empty { text-align: center; padding: 3rem 1rem; color: var(--muted); font-size: 14px; }
-  .empty-icon { font-size: 32px; margin-bottom: 8px; }
-
-  /* ── Bottom nav feel ── */
-  .bottom-space { height: 2rem; }
-
-  /* ── Snackbar ── */
-  #snackbar { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(60px); background: var(--surface2); border: 1px solid var(--border); color: var(--text); font-size: 13px; padding: 10px 18px; border-radius: 99px; white-space: nowrap; z-index: 999; opacity: 0; transition: all .25s; pointer-events: none; }
-  #snackbar.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-  #snackbar.green { border-color: var(--accent); color: var(--accent); }
-
-  /* ── Setup banner ── */
-  .setup-banner { margin: 0 1rem 1rem; padding: 12px 14px; background: #1a1200; border: 1px solid #4a3800; border-radius: var(--radius); font-size: 13px; color: var(--amber); }
-  .setup-banner a { color: var(--accent); text-decoration: none; }
-  .setup-input { margin-top: 8px; display: flex; gap: 6px; }
-  .setup-input input { flex: 1; font-size: 13px; padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); outline: none; }
-  .setup-input button { font-size: 13px; padding: 7px 14px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: var(--accent-text); cursor: pointer; font-weight: 500; }
-</style>
-</head>
-<body>
-
-<div id="lockScreen" class="lock-screen">
-  <div class="lock-card">
-    <div class="lock-icon">🔒</div>
-    <div class="lock-title">Expense Tracker</div>
-    <div class="lock-sub">Enter password to continue</div>
-    <input type="password" id="passwordInput" class="lock-input" placeholder="••••••" autocomplete="off" onkeydown="if(event.key==='Enter')checkPassword()"/>
-    <button class="lock-btn" onclick="checkPassword()">Unlock</button>
-    <div class="lock-error" id="lockError"></div>
-  </div>
-</div>
-
-<div class="app" id="appContent" style="display:none">
-
-  <div class="header">
-    <div>
-      <div class="header-title">Expense Tracker</div>
-      <div class="header-sub" id="dateLabel"></div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">This Week</div>
-      <div style="font-size:20px;font-weight:700;letter-spacing:-.5px;color:var(--accent)" id="grandTotal">₹0</div>
-      <div id="syncStatus" onclick="pullFromSheet()" style="font-size:11px;color:var(--muted);cursor:pointer;margin-top:2px">⟳ Tap to refresh</div>
-    </div>
-  </div>
-
-  <!-- Setup Banner — shown until Google Script URL is saved -->
-  <div class="setup-banner" id="setupBanner">
-    ⚙️ <strong>One-time setup:</strong> Paste your Google Apps Script URL to enable Sheets sync.
-    <div class="setup-input">
-      <input id="scriptUrlInput" type="url" placeholder="https://script.google.com/macros/s/..." />
-      <button onclick="saveScriptUrl()">Save</button>
-    </div>
-  </div>
-
-  <!-- Input -->
-  <div class="input-wrap">
-    <input id="mainInput" type="text" placeholder='e.g. "ola 120" or "sent amma 2000"' autocomplete="off" autocorrect="off" spellcheck="false" onkeydown="if(event.key==='Enter')addExpense()"/>
-    <button class="add-btn" onclick="addExpense()" aria-label="Add expense">+</button>
-  </div>
-
-  <div class="date-row" id="dateRow">
-    <button class="date-chip active" id="chip-today" onclick="setLogDate('today')">Today</button>
-    <button class="date-chip" id="chip-yesterday" onclick="setLogDate('yesterday')">Yesterday</button>
-    <div class="date-picker-wrap">
-      <button class="date-chip" id="chip-custom">📅 Pick date</button>
-      <input type="date" id="customDateInput" onchange="setLogDate('custom')"/>
-    </div>
-  </div>
-
-  <!-- Log result -->
-  <div class="log-result" id="logResult"></div>
-
-  <!-- Metrics -->
-  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
-    <div class="metric">
-      <div class="metric-label">Today</div>
-      <div class="metric-val accent" id="m-today">₹0</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">This month</div>
-      <div class="metric-val" id="m-month">₹—</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Entries</div>
-      <div class="metric-val" id="m-count">0</div>
-    </div>
-    <div class="metric">
-      <div class="metric-label">Match %</div>
-      <div class="metric-val" id="m-rate">—</div>
-    </div>
-  </div>
-
-  <!-- Tabs -->
-  <div class="tabs">
-    <button class="tab active" onclick="showTab('all',this)" id="tab-all-btn">All</button>
-    <button class="tab" onclick="showTab('uncat',this)" id="tab-uncat-btn">
-      Review
-      <span class="badge" id="uncatBadge">0</span>
-    </button>
-    <button class="tab" onclick="showTab('rules',this)">Rules</button>
-  </div>
-
-  <!-- Tab: All expenses -->
-  <div id="pane-all">
-    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing this week's last 5 · full history is in your Sheet</div>
-    <div class="exp-list" id="expList">
-      <div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>
-    </div>
-  </div>
-
-  <!-- Tab: Uncategorized -->
-  <div id="pane-uncat" style="display:none">
-    <div class="section" id="uncatList">
-      <div class="empty"><div class="empty-icon">✅</div>Everything is categorized.</div>
-    </div>
-  </div>
-
-  <!-- Tab: Learned rules + Settings -->
-  <div id="pane-rules" style="display:none">
-    <div class="card" style="margin:0 1rem 1rem">
-      <div class="teach-label" style="margin-bottom:8px">Google Sheets connection</div>
-      <div id="currentUrlStatus" style="font-size:12px;color:var(--muted);margin-bottom:10px;word-break:break-all"></div>
-      <div class="selects" style="margin-bottom:0">
-        <div class="new-input-wrap">
-          <input type="url" id="editScriptUrlInput" placeholder="Paste new Apps Script URL..."/>
-        </div>
-      </div>
-      <button class="teach-btn save" style="width:100%;margin-top:8px" onclick="updateScriptUrl()">Update URL</button>
-    </div>
-
-    <div class="rules-list" id="rulesList">
-      <div class="empty"><div class="empty-icon">🧠</div>No rules learned yet.<br/>Fix an uncategorized expense to teach the engine.</div>
-    </div>
-    <button class="export-btn" onclick="exportRules()">⬇ Export rules as JSON</button>
-  </div>
-
-  <div class="bottom-space"></div>
-</div>
-
-<div id="snackbar"></div>
-
-<script>
-// ─────────────────────────────────────────────
-//  CONFIG — paste your Google Apps Script URL
-//  in the app or edit SCRIPT_URL directly here
-// ─────────────────────────────────────────────
-let SCRIPT_URL = localStorage.getItem("scriptUrl") || "";
-
-// ─────────────────────────────────────────────
-//  SYNC QUEUE — ensures every write to the Sheet
-//  (insert / update / delete) happens one at a
-//  time, never overlapping. Apps Script can
-//  corrupt row-matching if multiple requests hit
-//  it simultaneously, since each request re-reads
-//  the whole sheet before acting.
-// ─────────────────────────────────────────────
-let syncQueue = Promise.resolve();
-function queueSync(fn) {
-  syncQueue = syncQueue.then(fn).catch(() => {});
-  return syncQueue;
-}
-
-// ─────────────────────────────────────────────
-//  PASSWORD LOCK
-//  Change this to whatever password you want.
-//  Note: this is a simple deterrent, not real
-//  security — anyone who views the page source
-//  can see this value.
-// ─────────────────────────────────────────────
-const APP_PASSWORD = "money";
-
-function checkPassword() {
-  const input = document.getElementById("passwordInput");
-  const err = document.getElementById("lockError");
-  if (input.value === APP_PASSWORD) {
-    document.getElementById("lockScreen").style.display = "none";
-    document.getElementById("appContent").style.display = "block";
-    initApp();
-  } else {
-    err.textContent = "Incorrect password, try again";
-    input.value = "";
-    input.focus();
-  }
-}
-
-document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("passwordInput").focus();
-});
-
-// ─────────────────────────────────────────────
-//  BASE RULE ENGINE
-//  keyword → { c: Category, s: Subcategory, e: emoji }
-// ─────────────────────────────────────────────
-const BASE_RULES = {
-  // Food — Meals
-  "lunch":      { c:"Food", s:"Meals", e:"🍛" },
-  "dinner":     { c:"Food", s:"Meals", e:"🍽️" },
-  "breakfast":  { c:"Food", s:"Meals", e:"🍳" },
-  "brunch":     { c:"Food", s:"Meals", e:"🍳" },
-  "food":       { c:"Food", s:"Meals", e:"🍛" },
-  "meal":       { c:"Food", s:"Meals", e:"🍛" },
-  "rice":       { c:"Food", s:"Meals", e:"🍚" },
-  "biryani":    { c:"Food", s:"Meals", e:"🍛" },
-  "dosa":       { c:"Food", s:"Meals", e:"🫓" },
-  "idli":       { c:"Food", s:"Meals", e:"🍽️" },
-  "thali":      { c:"Food", s:"Meals", e:"🍽️" },
-  "paratha":    { c:"Food", s:"Meals", e:"🫓" },
-  "roti":       { c:"Food", s:"Meals", e:"🫓" },
-  "chapati":    { c:"Food", s:"Meals", e:"🫓" },
-  "poha":       { c:"Food", s:"Meals", e:"🍽️" },
-  "upma":       { c:"Food", s:"Meals", e:"🍽️" },
-  // Food — Restaurant
-  "hotel":      { c:"Food", s:"Restaurant", e:"🏨" },
-  "restaurant": { c:"Food", s:"Restaurant", e:"🍽️" },
-  "cafe":       { c:"Food", s:"Restaurant", e:"☕" },
-  "canteen":    { c:"Food", s:"Restaurant", e:"🍽️" },
-  "darshini":   { c:"Food", s:"Restaurant", e:"🍽️" },
-  "mtr":        { c:"Food", s:"Restaurant", e:"🍽️" },
-  "ctr":        { c:"Food", s:"Restaurant", e:"🍽️" },
-  "udupi":      { c:"Food", s:"Restaurant", e:"🍽️" },
-  "saravana":   { c:"Food", s:"Restaurant", e:"🍽️" },
-  "starbucks":  { c:"Food", s:"Cafe", e:"☕" },
-  "dunkin":     { c:"Food", s:"Cafe", e:"☕" },
-  // Food — Beverages
-  "chai":       { c:"Food", s:"Beverages", e:"🍵" },
-  "tea":        { c:"Food", s:"Beverages", e:"🍵" },
-  "coffee":     { c:"Food", s:"Beverages", e:"☕" },
-  "juice":      { c:"Food", s:"Beverages", e:"🥤" },
-  "lassi":      { c:"Food", s:"Beverages", e:"🥛" },
-  "milkshake":  { c:"Food", s:"Beverages", e:"🥛" },
-  "soda":       { c:"Food", s:"Beverages", e:"🥤" },
-  // Food — Snacks
-  "snack":      { c:"Food", s:"Snacks", e:"🍟" },
-  "snacks":     { c:"Food", s:"Snacks", e:"🍟" },
-  "chips":      { c:"Food", s:"Snacks", e:"🍟" },
-  "biscuit":    { c:"Food", s:"Snacks", e:"🍪" },
-  "chocolate":  { c:"Food", s:"Snacks", e:"🍫" },
-  "icecream":   { c:"Food", s:"Snacks", e:"🍦" },
-  "ice cream":  { c:"Food", s:"Snacks", e:"🍦" },
-  "sweets":     { c:"Food", s:"Snacks", e:"🍬" },
-  "mithai":     { c:"Food", s:"Snacks", e:"🍬" },
-  // Food — Delivery
-  "swiggy":     { c:"Food", s:"Delivery", e:"🛵" },
-  "zomato":     { c:"Food", s:"Delivery", e:"🛵" },
-  "delivery":   { c:"Food", s:"Delivery", e:"🛵" },
-  // Food — Packed
-  "packed":     { c:"Food", s:"Packed Food", e:"📦" },
-  "maggi":      { c:"Food", s:"Packed Food", e:"🍜" },
-  "noodles":    { c:"Food", s:"Packed Food", e:"🍜" },
-  "bread":      { c:"Food", s:"Packed Food", e:"🍞" },
-  "eggs":       { c:"Food", s:"Packed Food", e:"🥚" },
-  "milk":       { c:"Food", s:"Packed Food", e:"🥛" },
-  "curd":       { c:"Food", s:"Packed Food", e:"🥛" },
-  "paneer":     { c:"Food", s:"Packed Food", e:"🧀" },
-  "butter":     { c:"Food", s:"Packed Food", e:"🧈" },
-  // Groceries
-  "grocery":    { c:"Groceries", s:"Supermarket", e:"🛒" },
-  "groceries":  { c:"Groceries", s:"Supermarket", e:"🛒" },
-  "vegetables": { c:"Groceries", s:"Vegetables", e:"🥦" },
-  "veggies":    { c:"Groceries", s:"Vegetables", e:"🥦" },
-  "sabzi":      { c:"Groceries", s:"Vegetables", e:"🥦" },
-  "fruits":     { c:"Groceries", s:"Fruits", e:"🍎" },
-  "market":     { c:"Groceries", s:"Supermarket", e:"🛒" },
-  "dmart":      { c:"Groceries", s:"Supermarket", e:"🛒" },
-  "reliance":   { c:"Groceries", s:"Supermarket", e:"🛒" },
-  "more":       { c:"Groceries", s:"Supermarket", e:"🛒" },
-  "bigbasket":  { c:"Groceries", s:"Online Grocery", e:"🛒" },
-  "blinkit":    { c:"Groceries", s:"Online Grocery", e:"⚡" },
-  "zepto":      { c:"Groceries", s:"Online Grocery", e:"⚡" },
-  "instamart":  { c:"Groceries", s:"Online Grocery", e:"⚡" },
-  // Transport — Cab
-  "uber":       { c:"Transport", s:"Cab", e:"🚖" },
-  "ola":        { c:"Transport", s:"Cab", e:"🚖" },
-  "rapido":     { c:"Transport", s:"Cab", e:"🏍️" },
-  "cab":        { c:"Transport", s:"Cab", e:"🚖" },
-  "taxi":       { c:"Transport", s:"Cab", e:"🚖" },
-  "auto":       { c:"Transport", s:"Auto", e:"🛺" },
-  // Transport — Bus / Metro
-  "bus":        { c:"Transport", s:"Bus", e:"🚌" },
-  "bmtc":       { c:"Transport", s:"Bus", e:"🚌" },
-  "ksrtc":      { c:"Transport", s:"Bus", e:"🚌" },
-  "volvo":      { c:"Transport", s:"Bus", e:"🚌" },
-  "metro":      { c:"Transport", s:"Metro", e:"🚇" },
-  "namma":      { c:"Transport", s:"Metro", e:"🚇" },
-  // Transport — Travel
-  "train":      { c:"Transport", s:"Train", e:"🚂" },
-  "irctc":      { c:"Transport", s:"Train", e:"🚂" },
-  "flight":     { c:"Transport", s:"Flight", e:"✈️" },
-  "airline":    { c:"Transport", s:"Flight", e:"✈️" },
-  "indigo":     { c:"Transport", s:"Flight", e:"✈️" },
-  "spicejet":   { c:"Transport", s:"Flight", e:"✈️" },
-  "ticket":     { c:"Transport", s:"Travel Ticket", e:"🎫" },
-  "hometown":   { c:"Transport", s:"Hometown Trip", e:"🏡" },
-  "petrol":     { c:"Transport", s:"Fuel", e:"⛽" },
-  "fuel":       { c:"Transport", s:"Fuel", e:"⛽" },
-  // Utilities
-  "rent":       { c:"Utilities", s:"Rent", e:"🏠" },
-  "pg":         { c:"Utilities", s:"Rent", e:"🏠" },
-  "room":       { c:"Utilities", s:"Rent", e:"🏠" },
-  "electricity":{ c:"Utilities", s:"Electricity", e:"⚡" },
-  "bescom":     { c:"Utilities", s:"Electricity", e:"⚡" },
-  "current":    { c:"Utilities", s:"Electricity", e:"⚡" },
-  "internet":   { c:"Utilities", s:"Internet", e:"📶" },
-  "wifi":       { c:"Utilities", s:"Internet", e:"📶" },
-  "broadband":  { c:"Utilities", s:"Internet", e:"📶" },
-  "airtel":     { c:"Utilities", s:"Internet & Mobile", e:"📶" },
-  "jio":        { c:"Utilities", s:"Mobile Recharge", e:"📱" },
-  "vi":         { c:"Utilities", s:"Mobile Recharge", e:"📱" },
-  "recharge":   { c:"Utilities", s:"Mobile Recharge", e:"📱" },
-  "gas":        { c:"Utilities", s:"Gas", e:"🔥" },
-  "cylinder":   { c:"Utilities", s:"Gas", e:"🔥" },
-  "lpg":        { c:"Utilities", s:"Gas", e:"🔥" },
-  // Shopping
-  "amazon":     { c:"Shopping", s:"Online", e:"📦" },
-  "flipkart":   { c:"Shopping", s:"Online", e:"📦" },
-  "meesho":     { c:"Shopping", s:"Online", e:"📦" },
-  "myntra":     { c:"Shopping", s:"Clothing", e:"👕" },
-  "ajio":       { c:"Shopping", s:"Clothing", e:"👕" },
-  "clothes":    { c:"Shopping", s:"Clothing", e:"👕" },
-  "shirt":      { c:"Shopping", s:"Clothing", e:"👕" },
-  "shoes":      { c:"Shopping", s:"Clothing", e:"👟" },
-  "shopping":   { c:"Shopping", s:"General", e:"🛍️" },
-  // Transfers
-  "sent":       { c:"Transfers", s:"Sent to Person", e:"💸" },
-  "send":       { c:"Transfers", s:"Sent to Person", e:"💸" },
-  "transfer":   { c:"Transfers", s:"Bank Transfer", e:"🏦" },
-  "gpay":       { c:"Transfers", s:"UPI Transfer", e:"💳" },
-  "phonepe":    { c:"Transfers", s:"UPI Transfer", e:"💳" },
-  "paytm":      { c:"Transfers", s:"UPI Transfer", e:"💳" },
-  "gave":       { c:"Transfers", s:"Sent to Person", e:"💸" },
-  "lent":       { c:"Transfers", s:"Lent to Person", e:"🤝" },
-  "friend":     { c:"Transfers", s:"Sent to Person", e:"👫" },
-  "amma":       { c:"Transfers", s:"Family", e:"❤️" },
-  "appa":       { c:"Transfers", s:"Family", e:"❤️" },
-  "anna":       { c:"Transfers", s:"Family", e:"❤️" },
-  "akka":       { c:"Transfers", s:"Family", e:"❤️" },
-  "thambi":     { c:"Transfers", s:"Family", e:"❤️" },
-  "family":     { c:"Transfers", s:"Family", e:"❤️" },
-  "mom":        { c:"Transfers", s:"Family", e:"❤️" },
-  "dad":        { c:"Transfers", s:"Family", e:"❤️" },
-  // Health
-  "medicine":   { c:"Health", s:"Medicine", e:"💊" },
-  "medical":    { c:"Health", s:"Medicine", e:"💊" },
-  "pharmacy":   { c:"Health", s:"Medicine", e:"💊" },
-  "medplus":    { c:"Health", s:"Medicine", e:"💊" },
-  "apollo":     { c:"Health", s:"Medicine", e:"💊" },
-  "tablet":     { c:"Health", s:"Medicine", e:"💊" },
-  "doctor":     { c:"Health", s:"Doctor Visit", e:"🩺" },
-  "hospital":   { c:"Health", s:"Doctor Visit", e:"🏥" },
-  "clinic":     { c:"Health", s:"Doctor Visit", e:"🩺" },
-  "gym":        { c:"Health", s:"Fitness", e:"💪" },
-  "fitness":    { c:"Health", s:"Fitness", e:"💪" },
-  // Entertainment
-  "movie":      { c:"Entertainment", s:"Movies", e:"🎬" },
-  "movies":     { c:"Entertainment", s:"Movies", e:"🎬" },
-  "pvr":        { c:"Entertainment", s:"Movies", e:"🎬" },
-  "inox":       { c:"Entertainment", s:"Movies", e:"🎬" },
-  "bookmyshow": { c:"Entertainment", s:"Movies", e:"🎬" },
-  "netflix":    { c:"Entertainment", s:"Streaming", e:"📺" },
-  "prime":      { c:"Entertainment", s:"Streaming", e:"📺" },
-  "hotstar":    { c:"Entertainment", s:"Streaming", e:"📺" },
-  "spotify":    { c:"Entertainment", s:"Music", e:"🎵" },
-  "outing":     { c:"Entertainment", s:"Outing", e:"🎉" },
-  "hangout":    { c:"Entertainment", s:"Outing", e:"🎉" },
-  "party":      { c:"Entertainment", s:"Outing", e:"🎉" },
-  "drinks":     { c:"Entertainment", s:"Drinks", e:"🍺" },
-  "beer":       { c:"Entertainment", s:"Drinks", e:"🍺" },
-  // Personal Care
-  "haircut":    { c:"Personal Care", s:"Salon", e:"💈" },
-  "salon":      { c:"Personal Care", s:"Salon", e:"💈" },
-  "barber":     { c:"Personal Care", s:"Salon", e:"💈" },
-  "shampoo":    { c:"Personal Care", s:"Grooming", e:"🧴" },
-  "soap":       { c:"Personal Care", s:"Grooming", e:"🧼" },
-  "laundry":    { c:"Personal Care", s:"Laundry", e:"👔" },
-  "washing":    { c:"Personal Care", s:"Laundry", e:"👔" },
-};
-
-const CATEGORIES = {
-  "Food":         ["Meals","Beverages","Snacks","Restaurant","Cafe","Delivery","Packed Food"],
-  "Groceries":    ["Supermarket","Vegetables","Fruits","Online Grocery"],
-  "Transport":    ["Cab","Auto","Bus","Metro","Train","Flight","Fuel","Travel Ticket","Hometown Trip"],
-  "Utilities":    ["Rent","Electricity","Internet","Internet & Mobile","Mobile Recharge","Gas"],
-  "Shopping":     ["Online","Clothing","General"],
-  "Transfers":    ["Sent to Person","Family","UPI Transfer","Bank Transfer","Lent to Person"],
-  "Health":       ["Medicine","Doctor Visit","Fitness"],
-  "Entertainment":["Movies","Streaming","Music","Outing","Drinks"],
-  "Personal Care":["Salon","Grooming","Laundry"]
-};
-
-const PILL_CLASS = {
-  "Food":"pill-food","Groceries":"pill-groceries","Transport":"pill-transport",
-  "Utilities":"pill-utilities","Shopping":"pill-shopping","Transfers":"pill-transfers",
-  "Health":"pill-health","Entertainment":"pill-entertainment","Personal Care":"pill-personal"
-};
-
-// ─────────────────────────────────────────────
-//  STATE
-// ─────────────────────────────────────────────
-let expenses   = JSON.parse(localStorage.getItem("expenses") || "[]");
-let learnedRules = JSON.parse(localStorage.getItem("learnedRules") || "{}");
-let activeTab  = "all";
-let selectedLogDate = new Date();
-let monthlyTotal = null;
-let monthlyCount = null;
-
-function setLogDate(which) {
-  const today = new Date();
-  document.querySelectorAll(".date-chip").forEach(c => c.classList.remove("active"));
-
-  if (which === "today") {
-    selectedLogDate = today;
-    document.getElementById("chip-today").classList.add("active");
-  } else if (which === "yesterday") {
-    selectedLogDate = new Date(today.getTime() - 86400000);
-    document.getElementById("chip-yesterday").classList.add("active");
-  } else if (which === "custom") {
-    const val = document.getElementById("customDateInput").value;
-    if (!val) return;
-    selectedLogDate = new Date(val + "T12:00:00");
-    document.getElementById("chip-custom").classList.add("active");
-    document.getElementById("chip-custom").textContent = "📅 " + selectedLogDate.toLocaleDateString("en-IN",{day:"numeric",month:"short"});
-  }
-}
-
-function allRules() { return {...BASE_RULES, ...learnedRules}; }
-
-// ─────────────────────────────────────────────
-//  CATEGORIZE
-// ─────────────────────────────────────────────
-function categorize(raw) {
-  const lower = raw.toLowerCase().trim();
-  const amtMatch = lower.match(/\d+(\.\d+)?/);
-  const amount   = amtMatch ? parseFloat(amtMatch[0]) : 0;
-  const textOnly = lower.replace(/\d+(\.\d+)?/g, "").trim();
-  const words    = textOnly.split(/\s+/).filter(Boolean);
-  const rules    = allRules();
-
-  // Multi-word phrases first
-  const multi = Object.keys(rules).filter(k => k.includes(" "));
-  for (const phrase of multi) {
-    if (lower.includes(phrase)) {
-      const r = rules[phrase];
-      return { c:r.c, s:r.s, e:r.e||"💰", amount, raw, matched:phrase };
-    }
-  }
-  // Single words
-  for (const w of words) {
-    if (rules[w]) {
-      const r = rules[w];
-      return { c:r.c, s:r.s, e:r.e||"💰", amount, raw, matched:w };
-    }
-  }
-  return { c:"Uncategorized", s:"Review Needed", e:"❓", amount, raw, matched:null };
-}
-
-// ─────────────────────────────────────────────
-//  ADD EXPENSE
-// ─────────────────────────────────────────────
-function currentWeekString() {
-  return "W" + getWeekNum(new Date());
-}
-
-function currentMonthString() {
-  return new Date().toLocaleString("en-IN", { month: "short", year: "numeric" });
-}
-
-function trimToWindow() {
-  // Keep only expenses from the current week, matched by the Week string
-  // (e.g. "W25") rather than exact dates — avoids all timezone/midnight
-  // edge cases entirely, since Week is a single stable label per entry.
-  const thisWeek = currentWeekString();
-  expenses = expenses.filter(e => e.week === thisWeek);
-}
-
-function addExpense() {
-  const input = document.getElementById("mainInput");
-  const raw   = input.value.trim();
-  if (!raw) return;
-
-  const ts = buildTimestamp(selectedLogDate);
-  const week = "W" + getWeekNum(selectedLogDate);
-  const month = selectedLogDate.toLocaleString("en-IN", { month: "short", year: "numeric" });
-  const exp = { ...categorize(raw), id: Date.now(), ts: ts, week: week, month: month };
-  expenses.unshift(exp);
-  trimToWindow();
-  saveExpenses();
-  input.value = "";
-
-  showLogResult(exp);
-  render();
-
-  if (!exp.matched) {
-    setTimeout(() => showTab("uncat", document.getElementById("tab-uncat-btn")), 400);
-  }
-
-  if (SCRIPT_URL) pushToSheet(exp);
-}
-
-function buildTimestamp(dateObj) {
-  const now = new Date();
-  const combined = new Date(dateObj);
-  combined.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
-  return combined.toISOString();
-}
-
-function showLogResult(exp) {
-  const el = document.getElementById("logResult");
-  if (exp.matched) {
-    el.className = "log-result matched";
-    el.textContent = `✓ ${exp.e}  ${exp.c} → ${exp.s}  ·  ₹${exp.amount.toLocaleString()}`;
-  } else {
-    el.className = "log-result unmatched";
-    el.textContent = `⚠  No rule matched — go to Review tab to teach the engine.`;
-  }
-  el.style.display = "block";
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.style.display = "none", 3500);
-}
-
-// ─────────────────────────────────────────────
-//  RENDER
-// ─────────────────────────────────────────────
-function render() {
-  renderAll();
-  renderUncat();
-  renderRules();
-  updateMetrics();
-  updateBadge();
-}
-
-function renderAll() {
-  const el = document.getElementById("expList");
-  if (!expenses.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>';
-    return;
-  }
-  el.innerHTML = expenses.slice(0, 5).map(exp => `
-    <div class="exp-row">
-      <div class="exp-icon">${exp.e}</div>
-      <div class="exp-body">
-        <div class="exp-raw">${exp.raw}</div>
-        <div class="exp-meta">${exp.matched ? `matched "${exp.matched}"` : "⚠ unmatched"} · ${fmtTime(exp.ts)}</div>
-      </div>
-      <div class="exp-right">
-        <div class="exp-amt">₹${exp.amount.toLocaleString()}</div>
-        <span class="pill ${PILL_CLASS[exp.c]||'pill-uncat'}">${exp.c}</span>
-      </div>
-      <button class="del-btn" onclick="deleteExp(${exp.id})" aria-label="Delete">×</button>
-    </div>`).join("");
-}
-
-function renderUncat() {
-  const uncat = expenses.filter(e => !e.matched);
-  const el = document.getElementById("uncatList");
-  if (!uncat.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Everything is categorized.</div>';
-    return;
-  }
-  el.innerHTML = uncat.map(exp => {
-    const sid = "e" + exp.id;
-    const textOnly = exp.raw.toLowerCase().replace(/\d+(\.\d+)?/g,"").trim();
-    const words = [...new Set(textOnly.split(/\s+/).filter(w => w.length > 1))];
-    return `
-      <div class="teach-card" id="tc-${exp.id}">
-        <div class="teach-raw">${exp.raw}</div>
-        <div class="teach-amt">₹${exp.amount} · no rule matched</div>
-        <div class="teach-label">Which word should the engine learn?</div>
-        <div class="word-chips" id="wc-${exp.id}">
-          ${words.map(w => `<button class="word-chip" onclick="selectWord(${exp.id},'${w}',this)">${w}</button>`).join("")}
-        </div>
-        <div class="teach-label">Assign category</div>
-        <div class="selects" id="catRow-${exp.id}">
-          ${categorySelectHtml(exp.id)}
-        </div>
-        <div id="catSimilar-${exp.id}" class="similar-hint"></div>
-        <div class="selects" id="subRow-${exp.id}" style="display:none">
-          ${subcategorySelectHtml(exp.id, "")}
-        </div>
-        <div id="subSimilar-${exp.id}" class="similar-hint"></div>
-        <div class="teach-actions">
-          <button class="teach-btn save" onclick="teachRule(${exp.id})">✓ Teach & save rule</button>
-          <button class="teach-btn skip" onclick="skipExp(${exp.id})">Skip</button>
-        </div>
-      </div>`;
-  }).join("");
-}
-
-function allCategories() {
-  const set = new Set(Object.keys(CATEGORIES));
-  Object.values(learnedRules).forEach(r => set.add(r.c));
-  expenses.forEach(e => { if (e.c && e.c !== "Uncategorized") set.add(e.c); });
-  return [...set].sort();
-}
-
-function allSubcategories(cat) {
-  const set = new Set(CATEGORIES[cat] || []);
-  Object.values(learnedRules).forEach(r => { if (r.c === cat) set.add(r.s); });
-  expenses.forEach(e => { if (e.c === cat && e.s) set.add(e.s); });
-  return [...set].sort();
-}
-
-function categorySelectHtml(id) {
-  const cats = allCategories();
-  return `<select id="cat-${id}" onchange="onCatChange(${id})">
-    <option value="">Category...</option>
-    ${cats.map(c => `<option value="${c}">${c}</option>`).join("")}
-    <option value="__new__">+ Add new category...</option>
-  </select>`;
-}
-
-function subcategorySelectHtml(id, cat) {
-  const subs = allSubcategories(cat);
-  return `<select id="sub-${id}" onchange="onSubChange(${id})">
-    <option value="">Subcategory...</option>
-    ${subs.map(s => `<option value="${s}">${s}</option>`).join("")}
-    <option value="__new__">+ Add new subcategory...</option>
-  </select>`;
-}
-
-function normalizeName(s) {
-  return s.trim().replace(/\s+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-}
-
-function levenshtein(a, b) {
-  const m = a.length, n = b.length;
-  const dp = Array.from({length:m+1}, (_,i) => [i, ...Array(n).fill(0)]);
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-  for (let i = 1; i <= m; i++) for (let j = 1; j <= n; j++) {
-    dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
-  }
-  return dp[m][n];
-}
-
-function findSimilar(input, list) {
-  const norm = normalizeName(input).toLowerCase();
-  let best = null, bestDist = Infinity;
-  for (const item of list) {
-    const itemNorm = item.toLowerCase();
-    if (itemNorm === norm) return { exact: item };
-    const dist = levenshtein(norm, itemNorm);
-    const threshold = Math.max(2, Math.floor(item.length * 0.3));
-    if (dist <= threshold && dist < bestDist) { best = item; bestDist = dist; }
-  }
-  return best ? { similar: best } : null;
-}
-
-function onCatChange(id) {
-  const sel = document.getElementById("cat-"+id);
-  const row = document.getElementById("catRow-"+id);
-  const simBox = document.getElementById("catSimilar-"+id);
-  const subRow = document.getElementById("subRow-"+id);
-
-  if (sel.value === "__new__") {
-    row.innerHTML = `<div class="new-input-wrap">
-      <input type="text" id="catNew-${id}" placeholder="Type new category..." oninput="checkSimilarCat(${id})" autofocus/>
-    </div>
-    <button class="teach-btn skip" style="flex:0 0 auto;padding:8px 12px" onclick="cancelNewCat(${id})">↩</button>`;
-    simBox.classList.remove("show");
-    subRow.style.display = "none";
-  } else {
-    simBox.classList.remove("show");
-    subRow.style.display = sel.value ? "flex" : "none";
-    if (sel.value) {
-      subRow.innerHTML = subcategorySelectHtml(id, sel.value);
-      document.getElementById("subSimilar-"+id).classList.remove("show");
-    }
-  }
-}
-
-function cancelNewCat(id) {
-  document.getElementById("catRow-"+id).innerHTML = categorySelectHtml(id);
-  document.getElementById("catSimilar-"+id).classList.remove("show");
-  document.getElementById("subRow-"+id).style.display = "none";
-}
-
-function checkSimilarCat(id) {
-  const input = document.getElementById("catNew-"+id);
-  const simBox = document.getElementById("catSimilar-"+id);
-  const val = input.value.trim();
-  if (!val) { simBox.classList.remove("show"); return; }
-
-  const match = findSimilar(val, allCategories());
-  if (match && match.similar) {
-    simBox.classList.add("show");
-    simBox.innerHTML = `Did you mean "<strong>${match.similar}</strong>"?
-      <button onclick="useSuggestedCat(${id},'${match.similar}')">Use this</button>
-      <button class="use-new" onclick="document.getElementById('catSimilar-${id}').classList.remove('show')">Keep new</button>`;
-  } else {
-    simBox.classList.remove("show");
-  }
-}
-
-function useSuggestedCat(id, cat) {
-  document.getElementById("catRow-"+id).innerHTML = categorySelectHtml(id);
-  document.getElementById("cat-"+id).value = cat;
-  document.getElementById("catSimilar-"+id).classList.remove("show");
-  onCatChange(id);
-}
-
-function onSubChange(id) {
-  const sel = document.getElementById("sub-"+id);
-  const row = document.getElementById("subRow-"+id);
-  const simBox = document.getElementById("subSimilar-"+id);
-
-  if (sel.value === "__new__") {
-    row.innerHTML = `<div class="new-input-wrap">
-      <input type="text" id="subNew-${id}" placeholder="Type new subcategory..." oninput="checkSimilarSub(${id})" autofocus/>
-    </div>
-    <button class="teach-btn skip" style="flex:0 0 auto;padding:8px 12px" onclick="cancelNewSub(${id})">↩</button>`;
-    simBox.classList.remove("show");
-  } else {
-    simBox.classList.remove("show");
-  }
-}
-
-function cancelNewSub(id) {
-  const cat = getCurrentCat(id);
-  document.getElementById("subRow-"+id).innerHTML = subcategorySelectHtml(id, cat);
-  document.getElementById("subSimilar-"+id).classList.remove("show");
-}
-
-function getCurrentCat(id) {
-  const catNewInput = document.getElementById("catNew-"+id);
-  if (catNewInput) return normalizeName(catNewInput.value);
-  const catSel = document.getElementById("cat-"+id);
-  return catSel ? catSel.value : "";
-}
-
-function checkSimilarSub(id) {
-  const input = document.getElementById("subNew-"+id);
-  const simBox = document.getElementById("subSimilar-"+id);
-  const val = input.value.trim();
-  if (!val) { simBox.classList.remove("show"); return; }
-
-  const cat = getCurrentCat(id);
-  const match = findSimilar(val, allSubcategories(cat));
-  if (match && match.similar) {
-    simBox.classList.add("show");
-    simBox.innerHTML = `Did you mean "<strong>${match.similar}</strong>"?
-      <button onclick="useSuggestedSub(${id},'${match.similar}')">Use this</button>
-      <button class="use-new" onclick="document.getElementById('subSimilar-${id}').classList.remove('show')">Keep new</button>`;
-  } else {
-    simBox.classList.remove("show");
-  }
-}
-
-function useSuggestedSub(id, sub) {
-  const cat = getCurrentCat(id);
-  document.getElementById("subRow-"+id).innerHTML = subcategorySelectHtml(id, cat);
-  document.getElementById("sub-"+id).value = sub;
-  document.getElementById("subSimilar-"+id).classList.remove("show");
-}
-
-function getFinalCatSub(id) {
-  const catNewInput = document.getElementById("catNew-"+id);
-  const cat = catNewInput ? normalizeName(catNewInput.value) : document.getElementById("cat-"+id).value;
-
-  const subNewInput = document.getElementById("subNew-"+id);
-  const sub = subNewInput ? normalizeName(subNewInput.value) : document.getElementById("sub-"+id).value;
-
-  return { cat, sub };
-}
-
-function renderRules() {
-  const el = document.getElementById("rulesList");
-  const keys = Object.keys(learnedRules);
-  if (!keys.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">🧠</div>No rules learned yet.<br/>Fix an uncategorized expense to teach the engine.</div>';
-    return;
-  }
-  el.innerHTML = keys.map(k => `
-    <div class="rule-row">
-      <div class="rule-keyword">${k}</div>
-      <div class="rule-arrow">→</div>
-      <div class="rule-cat">${learnedRules[k].c} · ${learnedRules[k].s}</div>
-      <button class="del-btn" onclick="deleteRule('${k}')" aria-label="Remove rule">×</button>
-    </div>`).join("");
-}
-
-// ─────────────────────────────────────────────
-//  TEACH FLOW
-// ─────────────────────────────────────────────
-let selectedWords = {};
-
-function selectWord(id, word, btn) {
-  document.querySelectorAll(`#wc-${id} .word-chip`).forEach(b => b.classList.remove("active"));
-  btn.classList.add("active");
-  selectedWords[id] = word;
-}
-
-function teachRule(id) {
-  const word = selectedWords[id];
-  const { cat, sub } = getFinalCatSub(id);
-  if (!word) { snack("Select a keyword first", false); return; }
-  if (!cat || !sub) { snack("Select or type category & subcategory", false); return; }
-
-  learnedRules[word] = { c:cat, s:sub, e:"📌" };
-  localStorage.setItem("learnedRules", JSON.stringify(learnedRules));
-
-  // Re-run the new rule against ALL unmatched expenses
-  let fixed = 0;
-  const toSync = [];
-  expenses.forEach(exp => {
-    if (!exp.matched) {
-      const re = categorize(exp.raw);
-      if (re.matched) {
-        Object.assign(exp, re);
-        fixed++;
-        toSync.push(exp);
-      }
-    }
-  });
-  saveExpenses();
-  delete selectedWords[id];
-  render();
-  snack(`Learned "${word}" → ${cat}${fixed > 1 ? `  ·  fixed ${fixed} expenses` : ""}`, true);
-
-  // Push corrected rows back to Sheet — updateSheetRow is queue-safe,
-  // so calling it for each one in order will never overlap requests.
-  toSync.forEach(exp => updateSheetRow(exp));
-}
-
-function skipExp(id) {
-  const exp = expenses.find(e => e.id === id);
-  if (exp) { exp.matched = "skipped"; exp.c = "Uncategorized"; exp.s = "Manual"; }
-  saveExpenses();
-  render();
-}
-
-function deleteExp(id) {
-  const exp = expenses.find(e => e.id === id);
-  if (!exp) return;
-  if (!confirm(`Delete "${exp.raw}" (₹${exp.amount})? This also removes it from your Sheet.`)) return;
-
-  expenses = expenses.filter(e => e.id !== id);
-  saveExpenses();
-  render();
-
-  if (SCRIPT_URL) deleteSheetRow(exp);
-}
-
-function deleteSheetRow(exp) {
-  queueSync(() => new Promise(resolve => {
-    const row = {
-      action: "delete",
-      id:     exp.id.toString()
-    };
-    fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body:   JSON.stringify(row)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== "success") {
-          snack("Could not delete from Sheet: " + (data.message||"unknown"), false);
-        } else {
-          snack("Removed from Sheet ✓", true);
-        }
-        resolve();
-      })
-      .catch(() => { snack("Could not reach Sheet to delete row", false); resolve(); });
-  }));
-}
-
-function deleteRule(key) {
-  delete learnedRules[key];
-  localStorage.setItem("learnedRules", JSON.stringify(learnedRules));
-  render();
-  snack(`Removed rule "${key}"`, false);
-}
-
-// ─────────────────────────────────────────────
-//  METRICS & UI
-// ─────────────────────────────────────────────
-function updateMetrics() {
-  const today = new Date().toDateString();
-  const todayExps = expenses.filter(e => new Date(e.ts).toDateString() === today);
-  const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
-  const total = expenses.reduce((s,e) => s+e.amount, 0);
-  const matched = expenses.filter(e => e.matched && e.matched !== "skipped").length;
-
-  document.getElementById("grandTotal").textContent = "₹" + total.toLocaleString();
-  document.getElementById("m-today").textContent    = "₹" + todayTotal.toLocaleString();
-  document.getElementById("m-month").textContent    = monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString();
-  document.getElementById("m-count").textContent    = expenses.length;
-  document.getElementById("m-rate").textContent     = expenses.length
-    ? Math.round(matched / expenses.length * 100) + "%"  : "—";
-}
-
-function updateBadge() {
-  const n = expenses.filter(e => !e.matched).length;
-  const badge = document.getElementById("uncatBadge");
-  badge.textContent = n;
-  badge.classList.toggle("show", n > 0);
-}
-
-function showTab(name, btn) {
-  ["all","uncat","rules"].forEach(t => {
-    document.getElementById("pane-"+t).style.display = t === name ? "block" : "none";
-  });
-  document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
-  if (btn) btn.classList.add("active");
-  activeTab = name;
-  if (name === "rules") renderUrlStatus();
-}
-
-function fmtTime(ts) {
-  if (!ts) return "";
-  const d = new Date(ts);
-  return d.toLocaleTimeString("en-IN", { hour:"2-digit", minute:"2-digit" });
-}
-
-// ─────────────────────────────────────────────
-//  PERSISTENCE
-// ─────────────────────────────────────────────
-function saveExpenses() {
-  localStorage.setItem("expenses", JSON.stringify(expenses.slice(0, 500)));
-}
-
-// ─────────────────────────────────────────────
-//  GOOGLE SHEETS SYNC
-// ─────────────────────────────────────────────
-function updateSheetRow(exp) {
-  if (!SCRIPT_URL) return;
-  queueSync(() => new Promise(resolve => {
-    const row = {
-      action:    "update",
-      id:        exp.id.toString(),
-      raw:       exp.raw,
-      category:  exp.c,
-      sub:       exp.s,
-      matched:   exp.matched || ""
-    };
-    fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body:   JSON.stringify(row)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status !== "success") {
-          snack("Could not update Sheet row for \"" + exp.raw + "\"", false);
-        }
-        resolve();
-      })
-      .catch(() => {
-        snack("Could not reach Sheet to fix \"" + exp.raw + "\"", false);
-        resolve();
-      });
-  }));
-}
-
-function pushToSheet(exp) {
-  if (!SCRIPT_URL) return;
-  setSyncStatus("syncing");
-  queueSync(() => new Promise(resolve => {
-    const expDate = exp.ts ? new Date(exp.ts) : new Date();
-    const row = {
-      id:        exp.id.toString(),
-      date:      expDate.toLocaleDateString("en-IN"),
-      time:      expDate.toLocaleTimeString("en-IN", {hour:"2-digit", minute:"2-digit"}),
-      raw:       exp.raw,
-      amount:    exp.amount,
-      category:  exp.c,
-      sub:       exp.s,
-      matched:   exp.matched || "",
-      week:      exp.week || ("W" + getWeekNum(expDate)),
-      month:     exp.month || expDate.toLocaleString("en-IN", {month:"short", year:"numeric"})
-    };
-    fetch(SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body:   JSON.stringify(row)
-    })
-      .then(res => {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        return res.json();
-      })
-      .then(data => {
-        if (data.status === "success") {
-          setSyncStatus("synced");
-        } else {
-          setSyncStatus("error");
-          snack("Sync failed: " + (data.message || "unknown error"), false);
-        }
-        resolve();
-      })
-      .catch(err => {
-        setSyncStatus("error");
-        snack("Sync error: " + err.message, false);
-        resolve();
-      });
-  }));
-}
-
-function pullFromSheet() {
-  if (!SCRIPT_URL) return;
-  setSyncStatus("syncing");
-  fetch(SCRIPT_URL)
-    .then(res => res.json())
-    .then(data => {
-      if (data.status !== "success") {
-        setSyncStatus("error");
-        return;
-      }
-      const remote = data.expenses || [];
-      const localIds = new Set(expenses.map(e => e.id.toString()));
-      // Filter by the Week string already stored in the Sheet (e.g. "W25")
-      // instead of comparing dates/timestamps — sidesteps all timezone and
-      // midnight edge cases entirely, since Week is one stable label.
-      const thisWeek = currentWeekString();
-      const now = new Date();
-      const thisYear = now.getFullYear();
-      const thisMonthNum = now.getMonth(); // 0-11
-      let added = 0;
-
-      // Monthly total comes from the FULL remote dataset (every row in the
-      // Sheet for the current month), independent of the week-scoped local
-      // cache — since expenses[] only ever holds the current week's rows.
-      // NOTE: Google Sheets silently auto-converts a text value like
-      // "Jun 2026" into an actual Date object if it looks date-like, so we
-      // can't reliably string-match r.month. Instead we parse it (handling
-      // both a real date and a fallback text format) and compare the
-      // actual year+month numbers, which is immune to that conversion.
-      function isSameMonth(monthVal) {
-        if (!monthVal) return false;
-        const d = new Date(monthVal);
-        if (!isNaN(d)) return d.getFullYear() === thisYear && d.getMonth() === thisMonthNum;
-        return false; // unparseable text, skip rather than risk a wrong match
-      }
-
-      monthlyTotal = remote
-        .filter(r => isSameMonth(r.month))
-        .reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
-      monthlyCount = remote.filter(r => isSameMonth(r.month)).length;
-
-      // remote[] arrives in the Sheet's natural top-to-bottom order, which
-      // is chronological (oldest first, since new rows are appended at the
-      // bottom). We use that array index as a reliable "recency rank" —
-      // far more trustworthy than the date-only timestamp, since the Sheet
-      // has no Time column and same-day entries would otherwise be
-      // indistinguishable.
-      remote.forEach((r, sheetIndex) => {
-        if (!r.id || localIds.has(r.id.toString())) return;
-        if ((r.week || "").trim() !== thisWeek) return; // only this week's rows
-        const recat = categorize(r.raw || "");
-        const ts = parseSheetDate(r.date, r.time);
-        expenses.push({
-          id: r.id,
-          ts: ts,
-          week: r.week,
-          month: r.month,
-          sheetOrder: sheetIndex,
-          raw: r.raw,
-          amount: parseFloat(r.amount) || 0,
-          c: r.category || recat.c,
-          s: r.sub || recat.s,
-          e: recat.e || "💰",
-          matched: r.matched || recat.matched
-        });
-        added++;
-      });
-
-      // Also trim any local expenses not in the current week — they still
-      // live permanently in the Sheet, just not kept in the app's local
-      // view to stay lightweight.
-      expenses = expenses.filter(e => e.week === thisWeek);
-
-      // Sort newest first: prefer sheetOrder (reliable, from the Sheet's
-      // actual row position) when both items have it; locally-added items
-      // not yet synced (no sheetOrder) are pushed via unshift so they
-      // already sit at the front — leave those as-is.
-      expenses.sort((a, b) => {
-        if (a.sheetOrder !== undefined && b.sheetOrder !== undefined) {
-          return b.sheetOrder - a.sheetOrder;
-        }
-        if (a.sheetOrder === undefined && b.sheetOrder === undefined) {
-          return new Date(b.ts) - new Date(a.ts);
-        }
-        return a.sheetOrder === undefined ? -1 : 1; // unsynced local items first
-      });
-      saveExpenses();
-      render();
-      setSyncStatus("synced");
-      if (added > 0) snack(`Synced ${added} expense${added>1?"s":""} from other devices`, true);
-    })
-    .catch(() => setSyncStatus("error"));
-}
-
-function parseSheetDate(dateStr, timeStr) {
+// ============================================================
+//  GOOGLE APPS SCRIPT — Expense Tracker Bridge v7
+//  NEW IN v7: forces the Month column to plain-text format so a
+//  value like "Jun-2026" can never be silently auto-converted into
+//  a real Date object by Google Sheets, regardless of locale.
+//  (Also includes v6's proper unique ID column for reliable
+//  update/delete matching — no more "row not found" errors.)
+//
+//  Your Sheet columns are:
+//  ID | Date | Raw Input | Description | Amount | Category |
+//  Subcategory | Week | Month
+//
+//  HOW TO USE:
+//  1. Open your Google Sheet
+//  2. Extensions → Apps Script
+//  3. Select all existing code, delete it
+//  4. Paste this entire file
+//  5. Deploy → Manage deployments → pencil icon → New version → Deploy
+//     (keeps your existing URL — no changes needed in the web app
+//      setup box, but you DO need to update the HTML file too)
+//  6. Make sure "Who has access" is set to "Anyone"
+//
+//  NOTE: if your Sheet's Month column already has old date-object
+//  values mixed in, those existing rows aren't auto-fixed by this
+//  script — see the app's fallback parsing for why that's still OK.
+// ============================================================
+
+var HEADERS = ["ID", "Date", "Raw Input", "Description", "Amount", "Category", "Subcategory", "Week", "Month"];
+
+function doPost(e) {
   try {
-    if (!dateStr) return new Date().toISOString();
-    const str = dateStr.toString();
+    var data = JSON.parse(e.postData.contents);
 
-    // Case 1: ISO format from a native Sheets Date object, e.g. "2026-06-16T00:00:00.000Z"
-    if (str.includes("T") || str.includes("-")) {
-      const dt = new Date(str);
-      if (!isNaN(dt)) return dt.toISOString();
+    if (data.action === "update") {
+      return handleUpdate(data);
+    }
+    if (data.action === "delete") {
+      return handleDelete(data);
+    }
+    return handleInsert(data);
+
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function handleInsert(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(HEADERS);
+  }
+
+  var id = data.id || generateId();
+
+  sheet.appendRow([
+    id,
+    data.date     || "",
+    data.raw      || "",
+    (data.matched || data.raw || ""),
+    data.amount   || 0,
+    data.category || "",
+    data.sub      || "",
+    data.week     || "",
+    data.month    || ""
+  ]);
+
+  // Force the Month column (I) to plain text so Sheets never silently
+  // auto-converts a value like "Jun-2026" into a real Date object,
+  // regardless of locale or auto-detection settings.
+  var lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow, 9).setNumberFormat("@");
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: "success", id: id }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleUpdate(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var rowNum = findRowById(sheet, data.id);
+
+  if (rowNum === -1) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: "ID not found: " + data.id }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  sheet.getRange(rowNum, 4).setValue(data.matched || data.raw || ""); // Description
+  sheet.getRange(rowNum, 6).setValue(data.category || "");             // Category
+  sheet.getRange(rowNum, 7).setValue(data.sub || "");                  // Subcategory
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: "success" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleDelete(data) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var rowNum = findRowById(sheet, data.id);
+
+  if (rowNum === -1) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: "ID not found: " + data.id }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  sheet.deleteRow(rowNum);
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ status: "success" }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function findRowById(sheet, id) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2 || !id) return -1;
+
+  var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < ids.length; i++) {
+    if (ids[i][0].toString() === id.toString()) {
+      return i + 2; // +2: array is 0-indexed, sheet rows start at 1, header is row 1
+    }
+  }
+  return -1;
+}
+
+function generateId() {
+  return "id" + new Date().getTime() + Math.floor(Math.random() * 1000);
+}
+
+function doGet(e) {
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var lastRow = sheet.getLastRow();
+
+    if (lastRow < 2) {
+      return ContentService
+        .createTextOutput(JSON.stringify({ status: "success", expenses: [] }))
+        .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // Case 2: DD/MM/YYYY text format
-    const parts = str.split("/");
-    if (parts.length === 3) {
-      const [d,m,y] = parts;
-      const dt = new Date(`${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`);
-      if (!isNaN(dt)) return dt.toISOString();
-    }
-  } catch(e) {}
-  return new Date().toISOString();
-}
+    var range = sheet.getRange(2, 1, lastRow - 1, 9).getValues();
+    var expenses = range.map(function(row) {
+      return {
+        id:       row[0] ? row[0].toString() : "",
+        date:     row[1],
+        raw:      row[2],
+        matched:  row[3],
+        amount:   row[4],
+        category: row[5],
+        sub:      row[6],
+        week:     row[7],
+        month:    row[8]
+      };
+    }).filter(function(e) { return e.id; }); // skip any rows without an ID
 
-function setSyncStatus(status) {
-  const el = document.getElementById("syncStatus");
-  if (!el) return;
-  const map = {
-    syncing: { text:"⟳ Syncing...", color:"var(--muted)" },
-    synced:  { text:"⟳ Synced", color:"var(--green)" },
-    error:   { text:"⟳ Sync failed — tap to retry", color:"var(--amber)" }
-  };
-  const s = map[status] || map.error;
-  el.textContent = s.text;
-  el.style.color = s.color;
-}
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "success", expenses: expenses }))
+      .setMimeType(ContentService.MimeType.JSON);
 
-function getWeekNum(d) {
-  // Standard Monday-start week number, consistent every year —
-  // no dependency on what weekday Jan 1st falls on, so this can't
-  // silently drift between code versions like the old formula could.
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7; // Sunday becomes 7 instead of 0
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum); // shift to the Thursday of this week
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
-}
-
-function saveScriptUrl() {
-  const url = document.getElementById("scriptUrlInput").value.trim();
-  if (!url.startsWith("https://script.google.com")) {
-    snack("Paste a valid Apps Script URL", false); return;
-  }
-  SCRIPT_URL = url;
-  localStorage.setItem("scriptUrl", url);
-  document.getElementById("setupBanner").style.display = "none";
-  snack("Sheets sync enabled ✓", true);
-  pullFromSheet();
-}
-
-function updateScriptUrl() {
-  const input = document.getElementById("editScriptUrlInput");
-  const url = input.value.trim();
-  if (!url) { snack("Paste a URL first", false); return; }
-  if (!url.startsWith("https://script.google.com")) {
-    snack("That doesn't look like a valid Apps Script URL", false); return;
-  }
-  SCRIPT_URL = url;
-  localStorage.setItem("scriptUrl", url);
-  input.value = "";
-  renderUrlStatus();
-  snack("Sheets URL updated ✓", true);
-  pullFromSheet();
-}
-
-function renderUrlStatus() {
-  const el = document.getElementById("currentUrlStatus");
-  if (!el) return;
-  if (SCRIPT_URL) {
-    const shortened = SCRIPT_URL.length > 50 ? SCRIPT_URL.slice(0, 35) + "..." + SCRIPT_URL.slice(-10) : SCRIPT_URL;
-    el.innerHTML = `Connected: <span style="color:var(--green)">${shortened}</span>`;
-  } else {
-    el.innerHTML = `<span style="color:var(--amber)">Not connected — paste a URL below</span>`;
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ status: "error", message: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
   }
 }
-
-// ─────────────────────────────────────────────
-//  EXPORT RULES
-// ─────────────────────────────────────────────
-function exportRules() {
-  const data = JSON.stringify(learnedRules, null, 2);
-  const blob = new Blob([data], {type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "my-rules.json";
-  a.click();
-}
-
-// ─────────────────────────────────────────────
-//  SNACKBAR
-// ─────────────────────────────────────────────
-function snack(msg, ok) {
-  const el = document.getElementById("snackbar");
-  el.textContent = msg;
-  el.className = "show" + (ok ? " green" : "");
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.className = "", 2600);
-}
-
-// ─────────────────────────────────────────────
-//  INIT — runs only after password is entered correctly
-// ─────────────────────────────────────────────
-function initApp() {
-  document.getElementById("dateLabel").textContent =
-    new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"});
-
-  if (SCRIPT_URL) {
-    document.getElementById("setupBanner").style.display = "none";
-    document.getElementById("grandTotal").textContent = "…";
-    pullFromSheet();
-  } else {
-    render();
-  }
-}
-</script>
-</body>
-</html>
