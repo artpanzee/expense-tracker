@@ -225,6 +225,10 @@
       <div class="metric-val accent" id="m-today">₹0</div>
     </div>
     <div class="metric">
+      <div class="metric-label">This week</div>
+      <div class="metric-val" id="m-week">₹0</div>
+    </div>
+    <div class="metric">
       <div class="metric-label">This month</div>
       <div class="metric-val" id="m-month">₹—</div>
     </div>
@@ -232,21 +236,17 @@
       <div class="metric-label">Entries</div>
       <div class="metric-val" id="m-count">0</div>
     </div>
-    <div class="metric">
-      <div class="metric-label">Match %</div>
-      <div class="metric-val" id="m-rate">—</div>
-    </div>
   </div>
 
   <!-- Tabs -->
   <div class="tabs">
-    <button class="tab active" onclick="showTab('all',this)" id="tab-all-btn">All</button>
+    <button class="tab active" onclick="showTab('all',this)" id="tab-all-btn">Recents</button>
+    <button class="tab" onclick="showTab('charts',this)" id="tab-charts-btn">Graph</button>
+    <button class="tab" onclick="showTab('rules',this)">Rules</button>
     <button class="tab" onclick="showTab('uncat',this)" id="tab-uncat-btn">
       Review
       <span class="badge" id="uncatBadge">0</span>
     </button>
-    <button class="tab" onclick="showTab('rules',this)">Rules</button>
-    <button class="tab" onclick="showTab('charts',this)" id="tab-charts-btn"><i class="ti ti-chart-pie" style="font-size:15px;vertical-align:-2px" aria-hidden="true"></i></button>
   </div>
 
   <!-- Tab: All expenses -->
@@ -280,7 +280,11 @@
     <div class="rules-list" id="rulesList">
       <div class="empty"><div class="empty-icon">🧠</div>No rules learned yet.<br/>Fix an uncategorized expense to teach the engine.</div>
     </div>
-    <button class="export-btn" onclick="exportRules()">⬇ Export rules as JSON</button>
+    <div style="display:flex;gap:8px;padding:0 1rem 1rem">
+      <button class="export-btn" onclick="exportRules()" style="flex:1">⬇ Export rules</button>
+      <button class="export-btn" onclick="document.getElementById('importFileInput').click()" style="flex:1">⬆ Import rules</button>
+      <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importRules(event)"/>
+    </div>
   </div>
 
   <!-- Tab: Charts -->
@@ -1063,15 +1067,13 @@ function updateMetrics() {
   const today = new Date().toDateString();
   const todayExps = expenses.filter(e => new Date(e.ts).toDateString() === today);
   const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
-  const total = expenses.reduce((s,e) => s+e.amount, 0);
-  const matched = expenses.filter(e => e.matched && e.matched !== "skipped").length;
+  const weekTotal  = expenses.reduce((s,e) => s+e.amount, 0); // expenses[] is already week-scoped
 
-  document.getElementById("grandTotal").textContent = "₹" + total.toLocaleString();
+  document.getElementById("grandTotal").textContent = "₹" + weekTotal.toLocaleString();
   document.getElementById("m-today").textContent    = "₹" + todayTotal.toLocaleString();
+  document.getElementById("m-week").textContent     = "₹" + weekTotal.toLocaleString();
   document.getElementById("m-month").textContent    = monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString();
-  document.getElementById("m-count").textContent    = expenses.length;
-  document.getElementById("m-rate").textContent     = expenses.length
-    ? Math.round(matched / expenses.length * 100) + "%"  : "—";
+  document.getElementById("m-count").textContent    = monthlyCount === null ? expenses.length : monthlyCount;
 }
 
 function updateBadge() {
@@ -1132,6 +1134,26 @@ function updateSheetRow(exp) {
   }));
 }
 
+function paddedDate(d) {
+  // Always DD/MM/YYYY with zero-padding so it's unambiguous across all device locales.
+  // toLocaleDateString("en-IN") can produce "4/9/2026" (no padding), which is ambiguous.
+  const day   = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year  = d.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
+function getDayName(d) {
+  return ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][d.getDay()];
+}
+
+function getDayNumber(d) {
+  // Day of year, 1-365 (or 366 in a leap year)
+  const start = new Date(d.getFullYear(), 0, 0);
+  const diff  = d - start;
+  return Math.floor(diff / 86400000);
+}
+
 function pushToSheet(exp) {
   if (!SCRIPT_URL) return;
   setSyncStatus("syncing");
@@ -1139,14 +1161,16 @@ function pushToSheet(exp) {
     const expDate = exp.ts ? new Date(exp.ts) : new Date();
     const row = {
       id:        exp.id.toString(),
-      date:      expDate.toLocaleDateString("en-IN"),
+      date:      paddedDate(expDate),
       raw:       exp.raw,
       amount:    exp.amount,
       category:  exp.c,
       sub:       exp.s,
       matched:   exp.matched || "",
       week:      exp.week || ("W" + getWeekNum(expDate)),
-      month:     exp.month || monthLabel(expDate)
+      month:     exp.month || monthLabel(expDate),
+      dayName:   getDayName(expDate),
+      dayNumber: getDayNumber(expDate)
     };
     fetch(SCRIPT_URL, {
       method: "POST",
@@ -1247,7 +1271,9 @@ function pullFromSheet() {
           c: r.category || recat.c,
           s: r.sub || recat.s,
           e: recat.e || "💰",
-          matched: r.matched || recat.matched
+          matched: r.matched || recat.matched,
+          dayName: r.dayName || "",
+          dayNumber: r.dayNumber || ""
         });
         added++;
       });
@@ -1283,17 +1309,19 @@ function parseSheetDate(dateStr, timeStr) {
     if (!dateStr) return new Date().toISOString();
     const str = dateStr.toString();
 
-    // Case 1: ISO format from a native Sheets Date object, e.g. "2026-06-16T00:00:00.000Z"
-    if (str.includes("T") || str.includes("-")) {
-      const dt = new Date(str);
+    // Primary: DD/MM/YYYY (zero-padded, the canonical format we now send)
+    // e.g. "04/09/2026" — day is always first, unambiguous
+    const slashParts = str.split("/");
+    if (slashParts.length === 3) {
+      const [d, m, y] = slashParts;
+      const dt = new Date(`${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`);
       if (!isNaN(dt)) return dt.toISOString();
     }
 
-    // Case 2: DD/MM/YYYY text format
-    const parts = str.split("/");
-    if (parts.length === 3) {
-      const [d,m,y] = parts;
-      const dt = new Date(`${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`);
+    // Fallback: ISO format from a native Sheets Date object
+    // e.g. "2026-09-04T00:00:00.000Z"
+    if (str.includes("T") || (str.includes("-") && str.length >= 8)) {
+      const dt = new Date(str);
       if (!isNaN(dt)) return dt.toISOString();
     }
   } catch(e) {}
@@ -1374,6 +1402,31 @@ function exportRules() {
   a.click();
 }
 
+function importRules(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const imported = JSON.parse(e.target.result);
+      if (typeof imported !== "object" || Array.isArray(imported)) {
+        snack("Invalid rules file — must be a JSON object", false);
+        return;
+      }
+      const before = Object.keys(learnedRules).length;
+      learnedRules = { ...learnedRules, ...imported };
+      localStorage.setItem("learnedRules", JSON.stringify(learnedRules));
+      const added = Object.keys(learnedRules).length - before;
+      renderRules();
+      snack(`Imported ${added} new rule${added !== 1 ? "s" : ""} ✓`, true);
+    } catch(err) {
+      snack("Could not read file — make sure it's a valid JSON", false);
+    }
+    event.target.value = "";
+  };
+  reader.readAsText(file);
+}
+
 // ─────────────────────────────────────────────
 //  SNACKBAR
 // ─────────────────────────────────────────────
@@ -1436,8 +1489,10 @@ function buildChartData() {
     const cat = e.c || "Other";
     byCat[cat] = (byCat[cat] || 0) + e.amount;
 
-    const d = new Date(e.ts);
-    const dayKey = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+    // Use stored dayName if available (reliable), otherwise reconstruct from ts
+    const dayKey = e.dayName
+      ? e.dayName.slice(0, 3)  // "Thursday" → "Thu"
+      : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(e.ts).getDay()];
     byDay[dayKey] = (byDay[dayKey] || 0) + e.amount;
 
     const wk = e.week || "?";
@@ -1577,22 +1632,31 @@ function renderTrendStats(data) {
   const el = document.getElementById("trendStats");
   if (!el) return;
   const src = chartRange === "month" && chartData ? chartData : expenses;
-  const amounts = src.map(e => e.amount).filter(Boolean);
-  const highDay = amounts.length ? Math.max(...amounts) : 0;
-  const avg = data.count ? Math.round(data.total / Math.max(data.count, 1)) : 0;
 
-  const weeks = Object.entries(data.byWeek).sort((a,b)=>parseInt(a[0].replace("W",""))-parseInt(b[0].replace("W","")));
-  let vsLast = null;
-  if (weeks.length >= 2) {
-    const curr = weeks[weeks.length-1][1];
-    const prev = weeks[weeks.length-2][1];
-    vsLast = prev > 0 ? Math.round(((curr-prev)/prev)*100) : null;
-  }
+  // Highest single entry
+  const amounts = src.map(e => e.amount).filter(Boolean);
+  const highest = amounts.length ? Math.max(...amounts) : 0;
+
+  // Sort weeks for comparison
+  const weeks = Object.entries(data.byWeek)
+    .sort((a,b) => parseInt(a[0].replace("W","")) - parseInt(b[0].replace("W","")));
+
+  // Avg this week per day: this week's total ÷ days elapsed so far this week
+  // Monday = day 0, today = how many days have passed (min 1)
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+  const daysElapsed = dayOfWeek === 0 ? 7 : dayOfWeek; // Sun counts as end of week (7)
+  const thisWeekTotal = weeks.length > 0 ? weeks[weeks.length-1][1] : 0;
+  const avgThisWeek = daysElapsed > 0 ? Math.round(thisWeekTotal / daysElapsed) : 0;
+
+  // Avg last week per day: last week's total ÷ 7
+  const lastWeekTotal = weeks.length >= 2 ? weeks[weeks.length-2][1] : null;
+  const avgLastWeek = lastWeekTotal !== null ? Math.round(lastWeekTotal / 7) : null;
 
   el.innerHTML = [
-    {label:"Highest", val:"₹"+Math.round(highDay).toLocaleString()},
-    {label:"Avg/entry", val:"₹"+avg.toLocaleString()},
-    {label:"vs last week", val: vsLast === null ? "—" : (vsLast >= 0 ? "+" : "")+vsLast+"%"}
+    { label: "Highest",          val: "₹" + Math.round(highest).toLocaleString() },
+    { label: "Avg/day this week",val: "₹" + avgThisWeek.toLocaleString() },
+    { label: "Avg/day last week",val: avgLastWeek === null ? "—" : "₹" + avgLastWeek.toLocaleString() }
   ].map(s => `<div style="text-align:center">
     <div style="font-size:11px;color:#888;margin-bottom:3px">${s.label}</div>
     <div style="font-size:15px;font-weight:500;color:var(--accent)">${s.val}</div>
@@ -1625,7 +1689,9 @@ function fetchChartMonthData() {
             raw: r.raw,
             amount: parseFloat(r.amount) || 0,
             c: r.category || recat.c,
-            matched: r.matched || recat.matched
+            matched: r.matched || recat.matched,
+            dayName: r.dayName || "",
+            dayNumber: r.dayNumber || ""
           };
         });
       if (activeTab === "charts") renderCharts();
