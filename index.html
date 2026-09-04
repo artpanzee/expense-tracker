@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="theme-color" content="#0f0f0f"/>
 <title>Expense Tracker</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%0A%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20fill%3D%22%230f0f0f%22/%3E%0A%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2234%22%20fill%3D%22none%22%20stroke%3D%22%23c8f04a%22%20stroke-width%3D%226%22/%3E%0A%3Ctext%20x%3D%2250%22%20y%3D%2264%22%20text-anchor%3D%22middle%22%20font-size%3D%2238%22%20font-weight%3D%22600%22%20fill%3D%22%23c8f04a%22%20font-family%3D%22Arial%2C%20sans-serif%22%3E%E2%82%B9%3C/text%3E%0A%3C/svg%3E%0A"/>
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%0A%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20fill%3D%22%230f0f0f%22/%3E%0A%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2234%22%20fill%3D%22none%22%20stroke%3D%22%23c8f04a%22%20stroke-width%3D%226%22/%3E%0A%3Ctext%20x%3D%2250%22%20y%3D%2264%22%20text-anchor%3D%22middle%22%20font-size%3D%2238%22%20font-weight%3D%22600%22%20fill%3D%22%23c8f04a%22%20font-family%3D%22Arial%2C%20sans-serif%22%3E%E2%82%B9%3C/text%3E%0A%3C/svg%3E%0A"/>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%0A%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20fill%3D%22%230f0f0f%22/%3E%0A%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2234%22%20fill%3D%22none%22%20stroke%3D%22%239772da%22%20stroke-width%3D%226%22/%3E%0A%3Ctext%20x%3D%2250%22%20y%3D%2264%22%20text-anchor%3D%22middle%22%20font-size%3D%2238%22%20font-weight%3D%22600%22%20fill%3D%22%239772da%22%20font-family%3D%22Arial%2C%20sans-serif%22%3E%E2%82%B9%3C/text%3E%0A%3C/svg%3E"/>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%0A%3Crect%20width%3D%22100%22%20height%3D%22100%22%20rx%3D%2222%22%20fill%3D%22%230f0f0f%22/%3E%0A%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2234%22%20fill%3D%22none%22%20stroke%3D%22%239772da%22%20stroke-width%3D%226%22/%3E%0A%3Ctext%20x%3D%2250%22%20y%3D%2264%22%20text-anchor%3D%22middle%22%20font-size%3D%2238%22%20font-weight%3D%22600%22%20fill%3D%22%239772da%22%20font-family%3D%22Arial%2C%20sans-serif%22%3E%E2%82%B9%3C/text%3E%0A%3C/svg%3E"/>
 <link rel="manifest" href="manifest.json"/>
 <style>
   :root {
@@ -17,9 +17,9 @@
     --text: #f0f0f0;
     --muted: #888;
     --faint: #444;
-    --accent: #c8f04a;
-    --accent-dim: #a8cc35;
-    --accent-text: #0f0f0f;
+    --accent: #9772da;
+    --accent-dim: #7f54c9;
+    --accent-text: #ffffff;
     --red: #ff5555;
     --red-bg: #2a1515;
     --amber: #f0a830;
@@ -105,7 +105,7 @@
   .teach-label { font-size: 12px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
   .word-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
   .word-chip { font-size: 13px; padding: 5px 12px; border-radius: 99px; border: 1px solid var(--border); color: var(--muted); background: var(--surface2); cursor: pointer; transition: all .12s; }
-  .word-chip.active { border-color: var(--accent); color: var(--accent); background: #1a2200; }
+  .word-chip.active { border-color: var(--accent); color: var(--accent); background: #1a1230; }
   .selects { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
   .selects select { flex: 1; min-width: 130px; font-size: 13px; padding: 8px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); outline: none; cursor: pointer; }
   .selects select:focus { border-color: var(--accent); }
@@ -246,6 +246,7 @@
       <span class="badge" id="uncatBadge">0</span>
     </button>
     <button class="tab" onclick="showTab('rules',this)">Rules</button>
+    <button class="tab" onclick="showTab('charts',this)" id="tab-charts-btn"><i class="ti ti-chart-pie" style="font-size:15px;vertical-align:-2px" aria-hidden="true"></i></button>
   </div>
 
   <!-- Tab: All expenses -->
@@ -280,6 +281,34 @@
       <div class="empty"><div class="empty-icon">🧠</div>No rules learned yet.<br/>Fix an uncategorized expense to teach the engine.</div>
     </div>
     <button class="export-btn" onclick="exportRules()">⬇ Export rules as JSON</button>
+  </div>
+
+  <!-- Tab: Charts -->
+  <div id="pane-charts" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 1rem 0.75rem">
+      <span style="font-size:13px;color:var(--muted)">Spending breakdown</span>
+      <div style="display:flex;gap:3px;background:var(--surface2);border-radius:6px;padding:3px">
+        <button id="chart-week-btn" onclick="setChartRange('week')" style="font-size:12px;padding:4px 12px;border-radius:4px;border:none;background:var(--accent);color:#fff;cursor:pointer;font-weight:500">Week</button>
+        <button id="chart-month-btn" onclick="setChartRange('month')" style="font-size:12px;padding:4px 12px;border-radius:4px;border:none;background:transparent;color:var(--muted);cursor:pointer">Month</button>
+      </div>
+    </div>
+
+    <div style="padding:0 1rem 1rem">
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Where money went</div>
+      <div style="display:flex;align-items:center;gap:1rem;margin-bottom:1.25rem">
+        <canvas id="donutCanvas" width="110" height="110" style="flex-shrink:0"></canvas>
+        <div id="donutLegend" style="flex:1;font-size:13px"></div>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Daily spending</div>
+      <div id="dailyBars" style="margin-bottom:1.25rem"></div>
+
+      <div style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Trend</div>
+      <div style="background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:0.5rem">
+        <canvas id="trendCanvas" width="320" height="80" style="width:100%;height:80px"></canvas>
+        <div id="trendStats" style="display:flex;justify-content:space-between;margin-top:10px"></div>
+      </div>
+    </div>
   </div>
 
   <div class="bottom-space"></div>
@@ -1053,13 +1082,14 @@ function updateBadge() {
 }
 
 function showTab(name, btn) {
-  ["all","uncat","rules"].forEach(t => {
+  ["all","uncat","rules","charts"].forEach(t => {
     document.getElementById("pane-"+t).style.display = t === name ? "block" : "none";
   });
   document.querySelectorAll(".tab").forEach(b => b.classList.remove("active"));
   if (btn) btn.classList.add("active");
   activeTab = name;
   if (name === "rules") renderUrlStatus();
+  if (name === "charts") renderCharts();
 }
 
 // ─────────────────────────────────────────────
@@ -1358,6 +1388,251 @@ function snack(msg, ok) {
 // ─────────────────────────────────────────────
 //  INIT — runs only after password is entered correctly
 // ─────────────────────────────────────────────
+// ─────────────────────────────────────────────
+//  CHARTS
+// ─────────────────────────────────────────────
+let chartRange = "week";
+let chartData = null;
+
+const CHART_COLORS = ["#9772da","#5b3990","#b49ae6","#7f54c9","#d1c1f1","#378ADD","#BA7517","#1D9E75","#D85A30"];
+
+function setChartRange(range) {
+  chartRange = range;
+  const wb = document.getElementById("chart-week-btn");
+  const mb = document.getElementById("chart-month-btn");
+  if (wb && mb) {
+    wb.style.background = range === "week" ? "var(--accent)" : "transparent";
+    wb.style.color = range === "week" ? "#fff" : "var(--muted)";
+    mb.style.background = range === "month" ? "var(--accent)" : "transparent";
+    mb.style.color = range === "month" ? "#fff" : "var(--muted)";
+  }
+  renderCharts();
+}
+
+function renderCharts() {
+  const data = buildChartData();
+  drawDonut(data.byCat);
+  drawDailyBars(data.byDay);
+  drawTrend(data.byWeek);
+  renderTrendStats(data);
+}
+
+function buildChartData() {
+  let src = expenses;
+
+  if (chartRange === "month" && chartData) {
+    src = chartData;
+  }
+
+  const byCat = {};
+  const byDay = {};
+  const byWeek = {};
+  let total = 0;
+
+  src.forEach(e => {
+    if (!e.amount) return;
+    total += e.amount;
+
+    const cat = e.c || "Other";
+    byCat[cat] = (byCat[cat] || 0) + e.amount;
+
+    const d = new Date(e.ts);
+    const dayKey = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+    byDay[dayKey] = (byDay[dayKey] || 0) + e.amount;
+
+    const wk = e.week || "?";
+    byWeek[wk] = (byWeek[wk] || 0) + e.amount;
+  });
+
+  return { byCat, byDay, byWeek, total, count: src.length };
+}
+
+function drawDonut(byCat) {
+  const canvas = document.getElementById("donutCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const cx = 55, cy = 55, r = 35, sw = 16;
+  ctx.clearRect(0, 0, 110, 110);
+
+  const entries = Object.entries(byCat).sort((a,b) => b[1]-a[1]);
+  const total = entries.reduce((s,[,v]) => s+v, 0);
+
+  if (!entries.length || !total) {
+    ctx.fillStyle = "#888";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("No data", cx, cy+4);
+    document.getElementById("donutLegend").innerHTML = "";
+    return;
+  }
+
+  let angle = -Math.PI / 2;
+  entries.forEach(([cat, val], i) => {
+    const sweep = (val / total) * 2 * Math.PI;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, angle, angle + sweep);
+    ctx.strokeStyle = CHART_COLORS[i % CHART_COLORS.length];
+    ctx.lineWidth = sw;
+    ctx.stroke();
+    angle += sweep;
+  });
+
+  ctx.fillStyle = "#f0f0f0";
+  ctx.font = "500 13px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("₹" + Math.round(total).toLocaleString(), cx, cy + 5);
+
+  const legend = document.getElementById("donutLegend");
+  legend.innerHTML = entries.slice(0, 5).map(([cat, val], i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px">
+      <span style="display:flex;align-items:center;gap:7px">
+        <span style="width:9px;height:9px;border-radius:50%;background:${CHART_COLORS[i%CHART_COLORS.length]};flex-shrink:0"></span>
+        <span style="color:#ccc;font-size:13px">${cat}</span>
+      </span>
+      <span style="font-weight:500;font-size:13px;color:#f0f0f0">₹${Math.round(val).toLocaleString()}</span>
+    </div>`).join("");
+}
+
+function drawDailyBars(byDay) {
+  const el = document.getElementById("dailyBars");
+  if (!el) return;
+  const days = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const max = Math.max(...Object.values(byDay), 1);
+
+  el.innerHTML = days.map(day => {
+    const amt = byDay[day] || 0;
+    const pct = Math.round((amt / max) * 100);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <span style="font-size:12px;color:#888;width:28px;text-align:right;flex-shrink:0">${day}</span>
+      <div style="flex:1;height:20px;background:var(--surface2);border-radius:4px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--accent);border-radius:4px;display:flex;align-items:center;padding-left:${pct>15?'8px':'0'}">
+          ${pct > 15 ? `<span style="font-size:11px;color:#fff;font-weight:500">₹${Math.round(amt).toLocaleString()}</span>` : ""}
+        </div>
+      </div>
+      ${pct <= 15 && amt > 0 ? `<span style="font-size:11px;color:var(--muted);min-width:40px">₹${Math.round(amt)}</span>` : `<span style="min-width:40px"></span>`}
+    </div>`;
+  }).join("");
+}
+
+function drawTrend(byWeek) {
+  const canvas = document.getElementById("trendCanvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const W = canvas.offsetWidth || 320;
+  canvas.width = W * window.devicePixelRatio;
+  canvas.height = 80 * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+  ctx.clearRect(0, 0, W, 80);
+
+  const entries = Object.entries(byWeek).sort((a,b) => {
+    const na = parseInt(a[0].replace("W",""),10);
+    const nb = parseInt(b[0].replace("W",""),10);
+    return na - nb;
+  });
+
+  if (entries.length < 2) {
+    ctx.fillStyle = "#888";
+    ctx.font = "11px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Need data from 2+ weeks for trend", W/2, 40);
+    return;
+  }
+
+  const vals = entries.map(([,v]) => v);
+  const maxV = Math.max(...vals, 1);
+  const pad = 20;
+  const chartW = W - pad * 2;
+  const chartH = 60;
+
+  const points = entries.map(([,v], i) => ({
+    x: pad + (i / (entries.length-1)) * chartW,
+    y: 8 + (1 - v / maxV) * (chartH - 8)
+  }));
+
+  ctx.beginPath();
+  points.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = "#9772da";
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  points.forEach(p => {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 3.5, 0, Math.PI*2);
+    ctx.fillStyle = "#9772da";
+    ctx.fill();
+  });
+
+  ctx.fillStyle = "#888";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  entries.forEach(([wk], i) => {
+    const x = pad + (i / (entries.length-1)) * chartW;
+    ctx.fillText(wk, x, 78);
+  });
+}
+
+function renderTrendStats(data) {
+  const el = document.getElementById("trendStats");
+  if (!el) return;
+  const src = chartRange === "month" && chartData ? chartData : expenses;
+  const amounts = src.map(e => e.amount).filter(Boolean);
+  const highDay = amounts.length ? Math.max(...amounts) : 0;
+  const avg = data.count ? Math.round(data.total / Math.max(data.count, 1)) : 0;
+
+  const weeks = Object.entries(data.byWeek).sort((a,b)=>parseInt(a[0].replace("W",""))-parseInt(b[0].replace("W","")));
+  let vsLast = null;
+  if (weeks.length >= 2) {
+    const curr = weeks[weeks.length-1][1];
+    const prev = weeks[weeks.length-2][1];
+    vsLast = prev > 0 ? Math.round(((curr-prev)/prev)*100) : null;
+  }
+
+  el.innerHTML = [
+    {label:"Highest", val:"₹"+Math.round(highDay).toLocaleString()},
+    {label:"Avg/entry", val:"₹"+avg.toLocaleString()},
+    {label:"vs last week", val: vsLast === null ? "—" : (vsLast >= 0 ? "+" : "")+vsLast+"%"}
+  ].map(s => `<div style="text-align:center">
+    <div style="font-size:11px;color:#888;margin-bottom:3px">${s.label}</div>
+    <div style="font-size:15px;font-weight:500;color:var(--accent)">${s.val}</div>
+  </div>`).join("");
+}
+
+function fetchChartMonthData() {
+  if (!SCRIPT_URL) return;
+  fetch(SCRIPT_URL)
+    .then(res => res.json())
+    .then(data => {
+      if (data.status !== "success") return;
+      const now = new Date();
+      const thisYear = now.getFullYear();
+      const thisMonthNum = now.getMonth();
+      chartData = (data.expenses || [])
+        .filter(r => {
+          if (!r.amount || parseFloat(r.amount) <= 0) return false;
+          const d = new Date(r.month || r.date);
+          if (!isNaN(d)) return d.getFullYear()===thisYear && d.getMonth()===thisMonthNum;
+          return false;
+        })
+        .map(r => {
+          const recat = categorize(r.raw || "");
+          return {
+            id: r.id,
+            ts: parseSheetDate(r.date),
+            week: r.week,
+            month: r.month,
+            raw: r.raw,
+            amount: parseFloat(r.amount) || 0,
+            c: r.category || recat.c,
+            matched: r.matched || recat.matched
+          };
+        });
+      if (activeTab === "charts") renderCharts();
+    })
+    .catch(() => {});
+}
+
 function initApp() {
   document.getElementById("dateLabel").textContent =
     new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"});
@@ -1366,6 +1641,7 @@ function initApp() {
     document.getElementById("setupBanner").style.display = "none";
     document.getElementById("grandTotal").textContent = "…";
     pullFromSheet();
+    fetchChartMonthData();
   } else {
     render();
   }
