@@ -123,7 +123,7 @@
   .date-chip { font-size: 12px; padding: 6px 12px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; transition: all .12s; white-space: nowrap; }
   .date-chip.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 500; }
   .date-picker-wrap { position: relative; flex-shrink: 0; }
-  .date-picker-wrap input[type="date"] { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+  .date-picker-wrap input[type="date"] { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; top: 0; left: 0; }
   .similar-hint { margin-top: 6px; padding: 8px 10px; background: var(--amber-bg); border: 1px solid #4a3010; border-radius: var(--radius-sm); font-size: 12px; color: var(--amber); display: none; }
   .similar-hint.show { display: block; }
   .similar-hint button { background: var(--accent); color: var(--accent-text); border: none; border-radius: 5px; padding: 3px 9px; font-size: 11px; cursor: pointer; margin-left: 6px; font-weight: 500; }
@@ -210,7 +210,7 @@
     <button class="date-chip active" id="chip-today" onclick="setLogDate('today')">Today</button>
     <button class="date-chip" id="chip-yesterday" onclick="setLogDate('yesterday')">Yesterday</button>
     <div class="date-picker-wrap">
-      <button class="date-chip" id="chip-custom">📅 Pick date</button>
+      <button class="date-chip" id="chip-custom" onclick="document.getElementById('customDateInput').showPicker ? document.getElementById('customDateInput').showPicker() : document.getElementById('customDateInput').click()">📅 Pick date</button>
       <input type="date" id="customDateInput" onchange="setLogDate('custom')"/>
     </div>
   </div>
@@ -668,9 +668,11 @@ function addExpense() {
   if (!raw) return;
 
   const ts = buildTimestamp(selectedLogDate);
-  const week = "W" + getWeekNum(selectedLogDate);
-  const month = monthLabel(selectedLogDate);
-  const exp = { ...categorize(raw), id: Date.now(), ts: ts, week: week, month: month };
+  const week    = "W" + getWeekNum(selectedLogDate);
+  const month   = monthLabel(selectedLogDate);
+  const dayName  = getDayName(selectedLogDate);
+  const dayNumber = getDayNumber(selectedLogDate);
+  const exp = { ...categorize(raw), id: Date.now(), ts, week, month, dayName, dayNumber };
   expenses.unshift(exp);
   trimToWindow();
   saveExpenses();
@@ -1209,36 +1211,21 @@ function pullFromSheet() {
         return;
       }
       const remote = data.expenses || [];
-      const localIds = new Set(expenses.map(e => e.id.toString()));
-      // Filter by the Week string already stored in the Sheet (e.g. "W25")
-      // instead of comparing dates/timestamps — sidesteps all timezone and
-      // midnight edge cases entirely, since Week is one stable label.
       const thisWeek = currentWeekString();
       const now = new Date();
       const thisYear = now.getFullYear();
-      const thisMonthNum = now.getMonth(); // 0-11
-      let added = 0;
+      const thisMonthNum = now.getMonth();
 
-      // Monthly total comes from the FULL remote dataset (every row in the
-      // Sheet for the current month), independent of the week-scoped local
-      // cache — since expenses[] only ever holds the current week's rows.
-      // Month is now stored as plain text like "Jun-2026" (hyphenated so
-      // Sheets won't auto-convert it into a Date the way "Jun 2026" was).
-      // We parse that explicit format first; Date() parsing of "Mon-YYYY"
-      // isn't reliable across browsers, so we don't lean on it as primary.
+      // ── Monthly totals (from full remote dataset, all weeks) ──
       const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       function isSameMonth(monthVal) {
         if (!monthVal) return false;
         const str = monthVal.toString().trim();
-
-        // Primary: explicit "Mon-YYYY" text format
         const match = str.match(/^([A-Za-z]{3})-(\d{4})$/);
         if (match) {
           const idx = MONTH_NAMES.indexOf(match[1]);
           return idx === thisMonthNum && parseInt(match[2], 10) === thisYear;
         }
-
-        // Fallback: legacy rows where Sheets converted it to a real Date
         const d = new Date(str);
         if (!isNaN(d)) return d.getFullYear() === thisYear && d.getMonth() === thisMonthNum;
         return false;
@@ -1249,57 +1236,51 @@ function pullFromSheet() {
         .reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
       monthlyCount = remote.filter(r => isSameMonth(r.month)).length;
 
-      // remote[] arrives in the Sheet's natural top-to-bottom order, which
-      // is chronological (oldest first, since new rows are appended at the
-      // bottom). We use that array index as a reliable "recency rank" —
-      // far more trustworthy than the date-only timestamp, since the Sheet
-      // has no Time column and same-day entries would otherwise be
-      // indistinguishable.
+      // ── Rebuild local expenses PURELY from Sheet ──
+      // Don't trust localStorage at all for the display list — always
+      // use the Sheet as single source of truth so any device sees the
+      // same data after a sync, regardless of what's in local cache.
+      // We keep any locally-added entries that haven't yet been pushed
+      // (sheetOrder === undefined AND not yet in remote by ID).
+      const remoteIds = new Set(remote.map(r => r.id ? r.id.toString() : "").filter(Boolean));
+      const unsyncedLocal = expenses.filter(e =>
+        e.sheetOrder === undefined && !remoteIds.has(e.id.toString())
+      );
+
+      // Rebuild from remote: only this week's rows, in Sheet order
+      const fromSheet = [];
       remote.forEach((r, sheetIndex) => {
-        if (!r.id || localIds.has(r.id.toString())) return;
-        if ((r.week || "").trim() !== thisWeek) return; // only this week's rows
+        if (!r.id) return;
+        if ((r.week || "").trim() !== thisWeek) return;
         const recat = categorize(r.raw || "");
-        const ts = parseSheetDate(r.date, r.time);
-        expenses.push({
-          id: r.id,
-          ts: ts,
-          week: r.week,
-          month: r.month,
+        fromSheet.push({
+          id:        r.id,
+          ts:        parseSheetDate(r.date),
+          week:      r.week,
+          month:     r.month,
           sheetOrder: sheetIndex,
-          raw: r.raw,
-          amount: parseFloat(r.amount) || 0,
-          c: r.category || recat.c,
-          s: r.sub || recat.s,
-          e: recat.e || "💰",
-          matched: r.matched || recat.matched,
-          dayName: r.dayName || "",
+          raw:       r.raw,
+          amount:    parseFloat(r.amount) || 0,
+          c:         r.category || recat.c,
+          s:         r.sub || recat.s,
+          e:         recat.e || "💰",
+          matched:   r.matched || recat.matched,
+          dayName:   r.dayName  || "",
           dayNumber: r.dayNumber || ""
         });
-        added++;
       });
 
-      // Also trim any local expenses not in the current week — they still
-      // live permanently in the Sheet, just not kept in the app's local
-      // view to stay lightweight.
-      expenses = expenses.filter(e => e.week === thisWeek);
+      // Merge: Sheet rows first (sorted newest by position), then any
+      // locally-typed entries not yet confirmed in the Sheet at the front.
+      fromSheet.sort((a,b) => b.sheetOrder - a.sheetOrder);
+      expenses = [...unsyncedLocal, ...fromSheet];
 
-      // Sort newest first: prefer sheetOrder (reliable, from the Sheet's
-      // actual row position) when both items have it; locally-added items
-      // not yet synced (no sheetOrder) are pushed via unshift so they
-      // already sit at the front — leave those as-is.
-      expenses.sort((a, b) => {
-        if (a.sheetOrder !== undefined && b.sheetOrder !== undefined) {
-          return b.sheetOrder - a.sheetOrder;
-        }
-        if (a.sheetOrder === undefined && b.sheetOrder === undefined) {
-          return new Date(b.ts) - new Date(a.ts);
-        }
-        return a.sheetOrder === undefined ? -1 : 1; // unsynced local items first
-      });
       saveExpenses();
       render();
       setSyncStatus("synced");
-      if (added > 0) snack(`Synced ${added} expense${added>1?"s":""} from other devices`, true);
+      if (fromSheet.length > 0) {
+        snack(`Synced ${fromSheet.length} entries from Sheet`, true);
+      }
     })
     .catch(() => setSyncStatus("error"));
 }
@@ -1489,10 +1470,20 @@ function buildChartData() {
     const cat = e.c || "Other";
     byCat[cat] = (byCat[cat] || 0) + e.amount;
 
-    // Use stored dayName if available (reliable), otherwise reconstruct from ts
-    const dayKey = e.dayName
-      ? e.dayName.slice(0, 3)  // "Thursday" → "Thu"
-      : ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(e.ts).getDay()];
+    // Use stored dayName if available (reliable, computed at log time).
+    // Fall back to dayNumber if available, otherwise reconstruct from ts
+    // as a last resort (unreliable due to timezone issues).
+    let dayKey;
+    if (e.dayName) {
+      dayKey = e.dayName.slice(0, 3); // "Thursday" → "Thu"
+    } else if (e.dayNumber) {
+      // dayNumber is 1-365; derive day of week from it
+      const jan1 = new Date(new Date(e.ts).getFullYear(), 0, 1);
+      const d = new Date(jan1.getTime() + (parseInt(e.dayNumber) - 1) * 86400000);
+      dayKey = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+    } else {
+      dayKey = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(e.ts).getDay()];
+    }
     byDay[dayKey] = (byDay[dayKey] || 0) + e.amount;
 
     const wk = e.week || "?";
