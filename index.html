@@ -1065,10 +1065,23 @@ function deleteRule(key) {
 //  METRICS & UI
 // ─────────────────────────────────────────────
 function updateMetrics() {
-  const today = new Date().toDateString();
-  const todayExps = expenses.filter(e => new Date(e.ts).toDateString() === today);
+  const now = new Date();
+  const todayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][now.getDay()];
+  const todayDate  = now.toDateString();
+  const thisWeekStr = currentWeekString(); // e.g. "W36"
+
+  // Use dayName + week string for Today — most reliable across devices.
+  // dayName alone isn't enough (last Saturday also has dayName "Saturday"),
+  // so we combine it with the current week to disambiguate uniquely.
+  // Fall back to timestamp comparison only for old entries missing dayName.
+  const todayExps = expenses.filter(e => {
+    if (e.dayName && e.week) {
+      return e.dayName === todayName && e.week === thisWeekStr;
+    }
+    return new Date(e.ts).toDateString() === todayDate;
+  });
   const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
-  const weekTotal  = expenses.reduce((s,e) => s+e.amount, 0); // expenses[] is already week-scoped
+  const weekTotal  = expenses.reduce((s,e) => s+e.amount, 0);
 
   document.getElementById("grandTotal").textContent = "₹" + weekTotal.toLocaleString();
   document.getElementById("m-today").textContent    = "₹" + todayTotal.toLocaleString();
