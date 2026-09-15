@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+(function(){
+  const saved = localStorage.getItem("expenseTheme");
+  const theme = saved === "dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="theme-color" content="#0f0f0f"/>
@@ -189,9 +197,105 @@
   .setup-input { margin-top: 8px; display: flex; gap: 6px; }
   .setup-input input { flex: 1; font-size: 13px; padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); outline: none; }
   .setup-input button { font-size: 13px; padding: 7px 14px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: var(--accent-text); cursor: pointer; font-weight: 500; }
+
+/* ─────────────────────────────────────────────
+   LIGHT / DARK THEME
+   ───────────────────────────────────────────── */
+:root{
+  --theme-bg:#f7f7f5;
+  --theme-surface:#ffffff;
+  --theme-surface-2:#f1f1ee;
+  --theme-text:#171717;
+  --theme-muted:#737373;
+  --theme-border:#e5e5e0;
+  --theme-shadow:0 8px 24px rgba(0,0,0,.06);
+  --theme-accent:#171717;
+  --theme-chart-grid:#e5e5e0;
+}
+
+html[data-theme="dark"]{
+  --theme-bg:#111111;
+  --theme-surface:#1a1a1a;
+  --theme-surface-2:#232323;
+  --theme-text:#f5f5f5;
+  --theme-muted:#a3a3a3;
+  --theme-border:#333333;
+  --theme-shadow:0 8px 24px rgba(0,0,0,.25);
+  --theme-accent:#f5f5f5;
+  --theme-chart-grid:#333333;
+}
+
+html[data-theme="dark"] body{
+  background:var(--theme-bg);
+  color:var(--theme-text);
+}
+
+html[data-theme="dark"] .sidebar,
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .card,
+html[data-theme="dark"] .modal,
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .sheet,
+html[data-theme="dark"] .review-card{
+  background:var(--theme-surface);
+  color:var(--theme-text);
+  border-color:var(--theme-border);
+}
+
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea{
+  background:var(--theme-surface-2);
+  color:var(--theme-text);
+  border-color:var(--theme-border);
+}
+
+html[data-theme="dark"] .muted,
+html[data-theme="dark"] .subtle,
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .meta{
+  color:var(--theme-muted);
+}
+
+/* Theme toggle */
+.theme-toggle{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-width:42px;
+  height:38px;
+  padding:0 11px;
+  border:1px solid var(--theme-border);
+  border-radius:12px;
+  background:var(--theme-surface);
+  color:var(--theme-text);
+  cursor:pointer;
+  font:inherit;
+  transition:background .2s,border-color .2s,transform .15s;
+}
+.theme-toggle:hover{transform:translateY(-1px)}
+.theme-toggle .theme-icon{font-size:16px;line-height:1}
+.theme-toggle .theme-label{font-size:12px;font-weight:600}
+@media(max-width:700px){
+  .theme-toggle{
+    width:40px;
+    min-width:40px;
+    padding:0;
+    border-radius:50%;
+  }
+  .theme-toggle .theme-label{display:none}
+}
+
 </style>
 </head>
 <body>
+<button id="themeToggle" class="theme-toggle" type="button"
+        aria-label="Switch theme" title="Switch theme">
+  <span class="theme-icon">☾</span>
+  <span class="theme-label">Dark</span>
+</button>
+
 
 <div class="app" id="appContent">
 
@@ -1143,33 +1247,99 @@ function deleteRule(key) {
 // ─────────────────────────────────────────────
 //  METRICS & UI
 // ─────────────────────────────────────────────
-function updateMetrics() {
+
+// ─────────────────────────────────────────────
+// CANONICAL PERIOD HELPERS
+// Week / Month / Day / Day No are the database
+// fields used for analytics.
+// ─────────────────────────────────────────────
+
+function normalizeMonthLabel(value){
+  if(!value) return "";
+  const s = String(value).trim();
+  const m = s.match(/^([A-Za-z]{3,4})-(\d{4})$/);
+  if(!m) return s;
+
+  const names = {
+    jan:"Jan", january:"Jan",
+    feb:"Feb", february:"Feb",
+    mar:"Mar", march:"Mar",
+    apr:"Apr", april:"Apr",
+    may:"May",
+    jun:"Jun", june:"Jun",
+    jul:"Jul", july:"Jul",
+    aug:"Aug", august:"Aug",
+    sep:"Sep", sept:"Sep", september:"Sep",
+    oct:"Oct", october:"Oct",
+    nov:"Nov", november:"Nov",
+    dec:"Dec", december:"Dec"
+  };
+
+  return (names[m[1].toLowerCase()] || m[1].slice(0,3)) + "-" + m[2];
+}
+
+function getCurrentPeriod(){
   const now = new Date();
-  const todayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][now.getDay()];
-  const todayDate  = now.toDateString();
-  const thisWeekStr = currentWeekString(); // e.g. "W36"
+  return {
+    week: "W" + getWeekNum(now),
+    month: normalizeMonthLabel(monthLabel(now)),
+    day: getDayName(now),
+    dayNumber: getDayNumber(now)
+  };
+}
 
-  // Use dayName + week string for Today — most reliable across devices.
-  // dayName alone isn't enough (last Saturday also has dayName "Saturday"),
-  // so we combine it with the current week to disambiguate uniquely.
-  // Fall back to timestamp comparison only for old entries missing dayName.
-  const todayExps = expenses.filter(e => {
-    if (e.dayName && e.week) {
-      return e.dayName === todayName && e.week === thisWeekStr;
-    }
-    return new Date(e.ts).toDateString() === todayDate;
-  });
-  const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
-  // Now that expenses[] holds ALL rows (not just current week), filter by week for the week metric
-  const weekExps  = expenses.filter(e => (e.week || "") === thisWeekStr);
-  const weekTotal = weekExps.reduce((s,e) => s+e.amount, 0);
+function getExpensesForPeriod(period){
+  const p = getCurrentPeriod();
 
-  const ss = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  ss("grandTotal", "₹" + weekTotal.toLocaleString());
-  ss("m-today",    "₹" + todayTotal.toLocaleString());
-  ss("m-week",     "₹" + weekTotal.toLocaleString());
-  ss("m-month",    monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString());
-  ss("m-count",    String(monthlyCount === null ? expenses.length : monthlyCount));
+  if(period === "today"){
+    return expenses.filter(e =>
+      String(e.dayNumber) === String(p.dayNumber) &&
+      String(e.week) === String(p.week)
+    );
+  }
+
+  if(period === "week"){
+    return expenses.filter(e => String(e.week) === String(p.week));
+  }
+
+  if(period === "month"){
+    return expenses.filter(e =>
+      normalizeMonthLabel(e.month) === p.month
+    );
+  }
+
+  return expenses;
+}
+
+function sumExpenses(list){
+  return list.reduce((sum,e) => sum + (parseFloat(e.amount) || 0), 0);
+}
+
+
+function getThemeValue(name, fallback){
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return value || fallback;
+}
+
+function updateMetrics(){
+  const todayExps = getExpensesForPeriod("today");
+  const weekExps  = getExpensesForPeriod("week");
+  const monthExps = getExpensesForPeriod("month");
+
+  const todayTotal = sumExpenses(todayExps);
+  const weekTotal  = sumExpenses(weekExps);
+  const monthTotal = sumExpenses(monthExps);
+
+  const ss = (id,val) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = val;
+  };
+
+  ss("grandTotal","₹" + weekTotal.toLocaleString());
+  ss("m-today","₹" + todayTotal.toLocaleString());
+  ss("m-week","₹" + weekTotal.toLocaleString());
+  ss("m-month","₹" + monthTotal.toLocaleString());
+  ss("m-count",String(monthExps.length));
 }
 
 function updateBadge() {
@@ -1791,7 +1961,7 @@ function fetchChartMonthData() {
             id: r.id,
             ts: parseSheetDate(r.date),
             week: r.week,
-            month: r.month,
+            month: normalizeMonthLabel(r.month),
             raw: r.raw,
             amount: parseFloat(r.amount) || 0,
             c: r.category || recat.c,
@@ -1888,9 +2058,9 @@ function renderDesktop() {
 
   const dm = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   dm("dm-today", "₹" + todayTotal.toLocaleString());
-  dm("dm-week",  "₹" + weekTotal.toLocaleString());
-  dm("dm-month", monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString());
-  dm("dm-count", monthlyCount === null ? expenses.length : monthlyCount);
+  dm("dm-week", "₹" + weekTotal.toLocaleString());
+    dm("dm-month", "₹" + monthTotal.toLocaleString());
+    dm("dm-count", monthExps.length);
 
   // Recent list in sidebar
   const rl = document.getElementById("desktopRecentList");
@@ -2239,5 +2409,42 @@ function initApp() {
   forceSyncFromSheet();
 }
 </script>
+
+<script>
+(function(){
+  function applyTheme(theme){
+    theme = theme === "dark" ? "dark" : "light";
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("expenseTheme", theme);
+
+    const btn = document.getElementById("themeToggle");
+    if(!btn) return;
+
+    const icon = btn.querySelector(".theme-icon");
+    const label = btn.querySelector(".theme-label");
+
+    if(icon) icon.textContent = theme === "dark" ? "☀" : "☾";
+    if(label) label.textContent = theme === "dark" ? "Light" : "Dark";
+    btn.setAttribute("aria-label", theme === "dark" ? "Switch to light mode" : "Switch to dark mode");
+    btn.title = theme === "dark" ? "Switch to light mode" : "Switch to dark mode";
+  }
+
+  window.setExpenseTheme = applyTheme;
+
+  document.addEventListener("DOMContentLoaded", function(){
+    const current = document.documentElement.getAttribute("data-theme") || "light";
+    applyTheme(current);
+
+    const btn = document.getElementById("themeToggle");
+    if(btn){
+      btn.addEventListener("click", function(){
+        const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+        applyTheme(currentTheme === "dark" ? "light" : "dark");
+      });
+    }
+  });
+})();
+</script>
+
 </body>
 </html>
