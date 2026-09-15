@@ -15,9 +15,9 @@
     --surface2: #ede9f8;
     --border: #d8d0f0;
     --text: #1a1530;
-    --text-secondary: #3d3560;
-    --muted: #4a4370;
-    --faint: #8a83aa;
+    --text-secondary: #2d2850;
+    --muted: #3d3660;
+    --faint: #7a73a0;
     --accent: #7f54c9;
     --accent-dim: #6a41af;
     --accent-text: #ffffff;
@@ -69,6 +69,12 @@
     .sidebar-recents { flex: 1; overflow-y: auto; min-height: 0; }
   }
 
+  /* ── Header ── */
+  .header { padding: 1.25rem 1rem 0.75rem; display: flex; align-items: center; justify-content: space-between; }
+  .header-title { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; color: var(--text); }
+  .header-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .section { padding: 0 1rem; margin-bottom: 1rem; }
+
   /* ── Input ── */
   .input-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px 4px 4px 14px; display: flex; align-items: center; gap: 8px; margin: 0 1rem 1rem; transition: border-color .15s; }
   .input-wrap:focus-within { border-color: var(--accent); }
@@ -90,10 +96,10 @@
   .log-result.unmatched { background: var(--amber-bg); border: 1px solid #4a3010; color: var(--amber); }
 
   /* ── Metrics ── */
-  .metrics { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 0 1rem 1rem; }
+  .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 1rem 1rem; }
   .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
   .metric-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-  .metric-val { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+  .metric-val { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; color: var(--text); }
   .metric-val.accent { color: var(--accent); }
 
   /* ── Tabs ── */
@@ -339,7 +345,7 @@
   <div class="log-result" id="logResult"></div>
 
   <!-- Metrics -->
-  <div class="metrics" style="grid-template-columns:repeat(4,1fr)">
+  <div class="metrics">
     <div class="metric">
       <div class="metric-label">Today</div>
       <div class="metric-val accent" id="m-today">₹0</div>
@@ -371,7 +377,7 @@
 
   <!-- Tab: All expenses -->
   <div id="pane-all">
-    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--faint)">Showing this week's last 5 · full history is in your Sheet</div>
+    <div style="padding:0 1rem 0.5rem;font-size:12px;color:var(--muted)">5 most recent · full history in your Sheet</div>
     <div class="exp-list" id="expList">
       <div class="empty"><div class="empty-icon">🧾</div>No expenses yet.<br/>Type above to log your first one.</div>
     </div>
@@ -752,11 +758,9 @@ function currentMonthString() {
 }
 
 function trimToWindow() {
-  // Keep only expenses from the current week, matched by the Week string
-  // (e.g. "W25") rather than exact dates — avoids all timezone/midnight
-  // edge cases entirely, since Week is a single stable label per entry.
-  const thisWeek = currentWeekString();
-  expenses = expenses.filter(e => e.week === thisWeek);
+  // No longer filtering by week — recents shows the last 5 regardless of week.
+  // We just keep the array at a sensible max size (500) to avoid bloat.
+  if (expenses.length > 500) expenses = expenses.slice(0, 500);
 }
 
 function addExpense() { addExpenseFrom("mobile"); }
@@ -805,7 +809,7 @@ function renderAll() {
       <div class="exp-icon">${exp.e}</div>
       <div class="exp-body">
         <div class="exp-raw">${exp.raw}</div>
-        <div class="exp-meta">${exp.matched ? `matched "${exp.matched}"` : "⚠ unmatched"}</div>
+        <div class="exp-meta">${exp.date || ""} · ${exp.matched ? `matched "${exp.matched}"` : "⚠ unmatched"}</div>
       </div>
       <div class="exp-right">
         <div class="exp-amt">₹${exp.amount.toLocaleString()}</div>
@@ -1156,7 +1160,9 @@ function updateMetrics() {
     return new Date(e.ts).toDateString() === todayDate;
   });
   const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
-  const weekTotal  = expenses.reduce((s,e) => s+e.amount, 0);
+  // Now that expenses[] holds ALL rows (not just current week), filter by week for the week metric
+  const weekExps  = expenses.filter(e => (e.week || "") === thisWeekStr);
+  const weekTotal = weekExps.reduce((s,e) => s+e.amount, 0);
 
   const ss = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   ss("grandTotal", "₹" + weekTotal.toLocaleString());
@@ -1324,25 +1330,23 @@ function pullFromSheet() {
       monthlyCount = remote.filter(r => isSameMonth(r.month)).length;
 
       // ── Rebuild local expenses PURELY from Sheet ──
-      // Don't trust localStorage at all for the display list — always
-      // use the Sheet as single source of truth so any device sees the
-      // same data after a sync, regardless of what's in local cache.
-      // We keep any locally-added entries that haven't yet been pushed
-      // (sheetOrder === undefined AND not yet in remote by ID).
+      // Pull ALL rows — no week filter — so recents shows the
+      // most recent 5 entries regardless of which week they're from.
+      // Week filtering only applies to metric calculations below.
       const remoteIds = new Set(remote.map(r => r.id ? r.id.toString() : "").filter(Boolean));
       const unsyncedLocal = expenses.filter(e =>
         e.sheetOrder === undefined && !remoteIds.has(e.id.toString())
       );
 
-      // Rebuild from remote: only this week's rows, in Sheet order
+      // Rebuild from remote: all rows, in Sheet order
       const fromSheet = [];
       remote.forEach((r, sheetIndex) => {
         if (!r.id) return;
-        if ((r.week || "").trim() !== thisWeek) return;
         const recat = categorize(r.raw || "");
         fromSheet.push({
           id:        r.id,
           ts:        parseSheetDate(r.date),
+          date:      r.date ? r.date.toString() : "",
           week:      r.week,
           month:     r.month,
           sheetOrder: sheetIndex,
@@ -1357,8 +1361,7 @@ function pullFromSheet() {
         });
       });
 
-      // Merge: Sheet rows first (sorted newest by position), then any
-      // locally-typed entries not yet confirmed in the Sheet at the front.
+      // Merge: Sheet rows newest first, unsynced local entries at front.
       fromSheet.sort((a,b) => b.sheetOrder - a.sheetOrder);
       expenses = [...unsyncedLocal, ...fromSheet];
 
@@ -1899,10 +1902,10 @@ function renderDesktop() {
         <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--border)">
           <div style="width:28px;height:28px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0">${e.e}</div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${e.raw}</div>
-            <div style="font-size:11px;color:var(--muted)">${e.c}</div>
+            <div style="font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">${e.raw}</div>
+            <div style="font-size:11px;color:var(--muted)">${e.date || ""} · ${e.c}</div>
           </div>
-          <div style="font-weight:500;font-size:13px">₹${e.amount.toLocaleString()}</div>
+          <div style="font-weight:500;font-size:13px;color:var(--text)">₹${e.amount.toLocaleString()}</div>
           <button onclick="deleteExp(${e.id})" style="background:none;border:none;cursor:pointer;color:var(--faint);font-size:16px;padding:2px;line-height:1;flex-shrink:0" aria-label="Delete">×</button>
         </div>`).join("");
     }
@@ -1999,29 +2002,187 @@ function renderDesktopReview() {
     el.innerHTML = '<div class="empty"><div class="empty-icon">✅</div>Everything is categorized.</div>';
     return;
   }
-  // Reuse the same teach card rendering from renderUncat
+  // Use "d_" prefix for all IDs to avoid duplicate ID conflicts with the
+  // identical mobile teach cards that exist (hidden) in the same DOM.
   el.innerHTML = uncat.map(exp => {
     const textOnly = exp.raw.toLowerCase().replace(/\d+(\.\d+)?/g,"").trim();
     const words = [...new Set(textOnly.split(/\s+/).filter(w => w.length > 1))];
+    const did = "d_" + exp.id;
     return `
-      <div class="teach-card" id="tc-${exp.id}">
+      <div class="teach-card" id="tc-${did}">
         <div class="teach-raw">${exp.raw}</div>
         <div class="teach-amt">₹${exp.amount} · no rule matched</div>
         <div class="teach-label">Which word should the engine learn?</div>
-        <div class="word-chips" id="wc-${exp.id}">
-          ${words.map(w => `<button class="word-chip" onclick="selectWord(${exp.id},'${w}',this)">${w}</button>`).join("")}
+        <div class="word-chips" id="wc-${did}">
+          ${words.map(w => `<button class="word-chip" onclick="selectWordD('${did}','${w}',this)">${w}</button>`).join("")}
         </div>
         <div class="teach-label">Assign category</div>
-        <div class="selects" id="catRow-${exp.id}">${categorySelectHtml(exp.id)}</div>
-        <div id="catSimilar-${exp.id}" class="similar-hint"></div>
-        <div class="selects" id="subRow-${exp.id}" style="display:none">${subcategorySelectHtml(exp.id,"")}</div>
-        <div id="subSimilar-${exp.id}" class="similar-hint"></div>
+        <div class="selects" id="catRow-${did}">${categorySelectHtmlD(did)}</div>
+        <div id="catSimilar-${did}" class="similar-hint"></div>
+        <div class="selects" id="subRow-${did}" style="display:none">${subcategorySelectHtmlD(did,"")}</div>
+        <div id="subSimilar-${did}" class="similar-hint"></div>
         <div class="teach-actions">
-          <button class="teach-btn save" onclick="teachRule(${exp.id})">✓ Teach & save</button>
+          <button class="teach-btn save" onclick="teachRuleD('${did}',${exp.id})">✓ Teach & save</button>
           <button class="teach-btn skip" onclick="skipExp(${exp.id})">Skip</button>
         </div>
       </div>`;
   }).join("");
+}
+
+// ── Desktop-specific teach helpers (use d_ prefixed IDs) ──
+function categorySelectHtmlD(did) {
+  const cats = allCategories();
+  return `<select id="cat-${did}" onchange="onCatChangeD('${did}')">
+    <option value="">Category...</option>
+    ${cats.map(c => `<option value="${c}">${c}</option>`).join("")}
+    <option value="__new__">+ Add new category...</option>
+  </select>`;
+}
+
+function subcategorySelectHtmlD(did, cat) {
+  const subs = allSubcategories(cat);
+  return `<select id="sub-${did}" onchange="onSubChangeD('${did}')">
+    <option value="">Subcategory...</option>
+    ${subs.map(s => `<option value="${s}">${s}</option>`).join("")}
+    <option value="__new__">+ Add new subcategory...</option>
+  </select>`;
+}
+
+const selectedWordsD = {};
+
+function selectWordD(did, word, btn) {
+  document.querySelectorAll(`#wc-${did} .word-chip`).forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  selectedWordsD[did] = word;
+}
+
+function onCatChangeD(did) {
+  const sel = document.getElementById("cat-"+did);
+  const row = document.getElementById("catRow-"+did);
+  const simBox = document.getElementById("catSimilar-"+did);
+  const subRow = document.getElementById("subRow-"+did);
+  if (sel.value === "__new__") {
+    row.innerHTML = `<div class="new-input-wrap">
+      <input type="text" id="catNew-${did}" placeholder="Type new category..." oninput="checkSimilarCatD('${did}')" autofocus/>
+    </div>
+    <button class="teach-btn skip" style="flex:0 0 auto;padding:8px 12px" onclick="cancelNewCatD('${did}')">↩</button>`;
+    simBox.classList.remove("show");
+    subRow.style.display = "none";
+  } else {
+    simBox.classList.remove("show");
+    subRow.style.display = sel.value ? "flex" : "none";
+    if (sel.value) {
+      subRow.innerHTML = subcategorySelectHtmlD(did, sel.value);
+      document.getElementById("subSimilar-"+did).classList.remove("show");
+    }
+  }
+}
+
+function cancelNewCatD(did) {
+  document.getElementById("catRow-"+did).innerHTML = categorySelectHtmlD(did);
+  document.getElementById("catSimilar-"+did).classList.remove("show");
+  document.getElementById("subRow-"+did).style.display = "none";
+}
+
+function checkSimilarCatD(did) {
+  const input = document.getElementById("catNew-"+did);
+  const simBox = document.getElementById("catSimilar-"+did);
+  const val = input.value.trim();
+  if (!val) { simBox.classList.remove("show"); return; }
+  const match = findSimilar(val, allCategories());
+  if (match && match.similar) {
+    simBox.classList.add("show");
+    simBox.innerHTML = `Did you mean "<strong>${match.similar}</strong>"?
+      <button onclick="useSuggestedCatD('${did}','${match.similar}')">Use this</button>
+      <button class="use-new" onclick="document.getElementById('catSimilar-${did}').classList.remove('show')">Keep new</button>`;
+  } else { simBox.classList.remove("show"); }
+}
+
+function useSuggestedCatD(did, cat) {
+  document.getElementById("catRow-"+did).innerHTML = categorySelectHtmlD(did);
+  document.getElementById("cat-"+did).value = cat;
+  document.getElementById("catSimilar-"+did).classList.remove("show");
+  onCatChangeD(did);
+}
+
+function onSubChangeD(did) {
+  const sel = document.getElementById("sub-"+did);
+  const row = document.getElementById("subRow-"+did);
+  const simBox = document.getElementById("subSimilar-"+did);
+  if (sel.value === "__new__") {
+    row.innerHTML = `<div class="new-input-wrap">
+      <input type="text" id="subNew-${did}" placeholder="Type new subcategory..." oninput="checkSimilarSubD('${did}')" autofocus/>
+    </div>
+    <button class="teach-btn skip" style="flex:0 0 auto;padding:8px 12px" onclick="cancelNewSubD('${did}')">↩</button>`;
+    simBox.classList.remove("show");
+  } else { simBox.classList.remove("show"); }
+}
+
+function cancelNewSubD(did) {
+  const cat = getCurrentCatD(did);
+  document.getElementById("subRow-"+did).innerHTML = subcategorySelectHtmlD(did, cat);
+  document.getElementById("subSimilar-"+did).classList.remove("show");
+}
+
+function getCurrentCatD(did) {
+  const catNewInput = document.getElementById("catNew-"+did);
+  if (catNewInput) return normalizeName(catNewInput.value);
+  const catSel = document.getElementById("cat-"+did);
+  return catSel ? catSel.value : "";
+}
+
+function checkSimilarSubD(did) {
+  const input = document.getElementById("subNew-"+did);
+  const simBox = document.getElementById("subSimilar-"+did);
+  const val = input.value.trim();
+  if (!val) { simBox.classList.remove("show"); return; }
+  const cat = getCurrentCatD(did);
+  const match = findSimilar(val, allSubcategories(cat));
+  if (match && match.similar) {
+    simBox.classList.add("show");
+    simBox.innerHTML = `Did you mean "<strong>${match.similar}</strong>"?
+      <button onclick="useSuggestedSubD('${did}','${match.similar}')">Use this</button>
+      <button class="use-new" onclick="document.getElementById('subSimilar-${did}').classList.remove('show')">Keep new</button>`;
+  } else { simBox.classList.remove("show"); }
+}
+
+function useSuggestedSubD(did, sub) {
+  const cat = getCurrentCatD(did);
+  document.getElementById("subRow-"+did).innerHTML = subcategorySelectHtmlD(did, cat);
+  document.getElementById("sub-"+did).value = sub;
+  document.getElementById("subSimilar-"+did).classList.remove("show");
+}
+
+function getFinalCatSubD(did) {
+  const catNewInput = document.getElementById("catNew-"+did);
+  const cat = catNewInput ? normalizeName(catNewInput.value) : document.getElementById("cat-"+did).value;
+  const subNewInput = document.getElementById("subNew-"+did);
+  const sub = subNewInput ? normalizeName(subNewInput.value) : document.getElementById("sub-"+did).value;
+  return { cat, sub };
+}
+
+function teachRuleD(did, expId) {
+  const word = selectedWordsD[did];
+  const { cat, sub } = getFinalCatSubD(did);
+  if (!word) { snack("Select a keyword first", false); return; }
+  if (!cat || !sub) { snack("Select or type category & subcategory", false); return; }
+
+  learnedRules[word] = { c:cat, s:sub, e:"📌" };
+  localStorage.setItem("learnedRules", JSON.stringify(learnedRules));
+
+  let fixed = 0;
+  const toSync = [];
+  expenses.forEach(exp => {
+    if (!exp.matched) {
+      const re = categorize(exp.raw);
+      if (re.matched) { Object.assign(exp, re); fixed++; toSync.push(exp); }
+    }
+  });
+  saveExpenses();
+  delete selectedWordsD[did];
+  render();
+  snack(`Learned "${word}" → ${cat}${fixed > 1 ? `  ·  fixed ${fixed} expenses` : ""}`, true);
+  toSync.forEach(exp => updateSheetRow(exp));
 }
 
 function saveScriptUrlDesktop() {
