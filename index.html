@@ -1,13 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>
-(function(){
-  const saved = localStorage.getItem("expenseTheme");
-  document.documentElement.setAttribute("data-theme", saved === "dark" ? "dark" : "light");
-})();
-</script>
-
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <meta name="theme-color" content="#0f0f0f"/>
@@ -196,48 +189,6 @@
   .setup-input { margin-top: 8px; display: flex; gap: 6px; }
   .setup-input input { flex: 1; font-size: 13px; padding: 7px 10px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface2); color: var(--text); outline: none; }
   .setup-input button { font-size: 13px; padding: 7px 14px; border-radius: var(--radius-sm); border: none; background: var(--accent); color: var(--accent-text); cursor: pointer; font-weight: 500; }
-
-/* ─────────────────────────────────────────────
-   LIGHT / DARK MODE
-   ───────────────────────────────────────────── */
-html[data-theme="dark"]{
-  --bg:#111014;
-  --surface:#1b191f;
-  --surface2:#242129;
-  --border:#37323e;
-  --text:#f4f1f7;
-  --muted:#aaa3b2;
-  --faint:#7f7789;
-  --accent:#9772da;
-  --accent-dim:#7f54c9;
-  --accent-text:#ffffff;
-  --red:#ef6b63;
-  --red-bg:#321e20;
-  --amber:#e6a94d;
-  --amber-bg:#302818;
-  --green:#62c98a;
-  --green-bg:#193023;
-}
-
-.theme-toggle{
-  width:36px;
-  height:36px;
-  padding:0;
-  border:1px solid var(--border);
-  border-radius:50%;
-  background:var(--surface);
-  color:var(--text);
-  cursor:pointer;
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  font-size:16px;
-  line-height:1;
-  flex-shrink:0;
-  transition:transform .15s,background .2s,border-color .2s;
-}
-.theme-toggle:hover{transform:translateY(-1px)}
-
 </style>
 </head>
 <body>
@@ -251,9 +202,7 @@ html[data-theme="dark"]{
         <div class="header-title">Expense Tracker</div>
         <div class="header-sub" id="dateLabelDesktop"></div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px">
-      <button id="themeToggleDesktop" class="theme-toggle" onclick="toggleTheme()" aria-label="Switch theme" title="Switch theme">☾</button>
-      <button id="syncBtnDesktop" onclick="forceSyncFromSheet()" style="font-size:12px;padding:5px 14px;border-radius:99px;border:none;background:#ddd;color:#888;cursor:pointer;font-weight:500;transition:all .3s">⟳ Sync</button></div>
+      <button id="syncBtnDesktop" onclick="forceSyncFromSheet()" style="font-size:12px;padding:5px 14px;border-radius:99px;border:none;background:#ddd;color:#888;cursor:pointer;font-weight:500;transition:all .3s">⟳ Sync</button>
     </div>
 
     <div class="setup-banner" id="setupBannerDesktop" style="display:none;margin:0;font-size:12px">
@@ -363,9 +312,7 @@ html[data-theme="dark"]{
       <div class="header-sub" id="dateLabel"></div>
     </div>
     <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-      <div style="display:flex;align-items:center;gap:6px">
-        <button id="themeToggleMobile" class="theme-toggle" onclick="toggleTheme()" aria-label="Switch theme" title="Switch theme">☾</button>
-        <button id="syncBtn" onclick="forceSyncFromSheet()" style="font-size:12px;padding:5px 14px;border-radius:99px;border:none;background:#ddd;color:#888;cursor:pointer;font-weight:500;transition:all .3s">⟳ Sync</button></div>
+      <button id="syncBtn" onclick="forceSyncFromSheet()" style="font-size:12px;padding:5px 14px;border-radius:99px;border:none;background:#ddd;color:#888;cursor:pointer;font-weight:500;transition:all .3s">⟳ Sync</button>
     </div>
   </div>
 
@@ -1196,121 +1143,33 @@ function deleteRule(key) {
 // ─────────────────────────────────────────────
 //  METRICS & UI
 // ─────────────────────────────────────────────
-
-// ─────────────────────────────────────────────
-//  CANONICAL ANALYTICS PERIODS
-//  Transaction period fields from Google Sheets:
-//  Week | Month | Day | Day No
-// ─────────────────────────────────────────────
-
-function normalizeMonthLabel(value){
-  if (!value) return "";
-  const s = String(value).trim();
-  const m = s.match(/^([A-Za-z]{3,12})-(\d{4})$/);
-  if (!m) return s;
-
-  const map = {
-    jan:"Jan", january:"Jan",
-    feb:"Feb", february:"Feb",
-    mar:"Mar", march:"Mar",
-    apr:"Apr", april:"Apr",
-    may:"May",
-    jun:"Jun", june:"Jun",
-    jul:"Jul", july:"Jul",
-    aug:"Aug", august:"Aug",
-    sep:"Sep", sept:"Sep", september:"Sep",
-    oct:"Oct", october:"Oct",
-    nov:"Nov", november:"Nov",
-    dec:"Dec", december:"Dec"
-  };
-
-  return (map[m[1].toLowerCase()] || m[1].slice(0,3)) + "-" + m[2];
-}
-
-function getCurrentPeriod(){
-  const now = new Date();
-  return {
-    week: "W" + getWeekNum(now),
-    month: normalizeMonthLabel(monthLabel(now)),
-    day: getDayName(now),
-    dayNumber: getDayNumber(now)
-  };
-}
-
-function getExpensesForPeriod(period){
-  const p = getCurrentPeriod();
-
-  if (period === "today") {
-    return expenses.filter(e =>
-      String(e.week || "") === p.week &&
-      String(e.dayName || e.day || "") === p.day &&
-      String(e.dayNumber || "") === String(p.dayNumber)
-    );
-  }
-
-  if (period === "week") {
-    return expenses.filter(e => String(e.week || "") === p.week);
-  }
-
-  if (period === "month") {
-    return expenses.filter(e => normalizeMonthLabel(e.month) === p.month);
-  }
-
-  return expenses;
-}
-
-function sumExpenses(list){
-  return list.reduce((sum,e) => sum + (parseFloat(e.amount) || 0), 0);
-}
-
-function toggleTheme(){
-  const current = document.documentElement.getAttribute("data-theme") || "light";
-  const next = current === "dark" ? "light" : "dark";
-  document.documentElement.setAttribute("data-theme", next);
-  localStorage.setItem("expenseTheme", next);
-
-  const icon = next === "dark" ? "☀" : "☾";
-  ["themeToggleDesktop","themeToggleMobile"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.textContent = icon;
-      el.title = next === "dark" ? "Switch to light mode" : "Switch to dark mode";
-      el.setAttribute("aria-label", next === "dark" ? "Switch to light mode" : "Switch to dark mode");
-    }
-  });
-
-  if (typeof renderCharts === "function") renderCharts();
-  if (typeof renderDesktopCharts === "function" && isDesktop()) renderDesktopCharts();
-}
-
-function initThemeToggle(){
-  const theme = document.documentElement.getAttribute("data-theme") || "light";
-  const icon = theme === "dark" ? "☀" : "☾";
-  ["themeToggleDesktop","themeToggleMobile"].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = icon;
-  });
-}
-
 function updateMetrics() {
-  const todayExps = getExpensesForPeriod("today");
-  const weekExps  = getExpensesForPeriod("week");
-  const monthExps = getExpensesForPeriod("month");
+  const now = new Date();
+  const todayName  = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][now.getDay()];
+  const todayDate  = now.toDateString();
+  const thisWeekStr = currentWeekString(); // e.g. "W36"
 
-  const todayTotal = sumExpenses(todayExps);
-  const weekTotal  = sumExpenses(weekExps);
-  const monthTotal = sumExpenses(monthExps);
+  // Use dayName + week string for Today — most reliable across devices.
+  // dayName alone isn't enough (last Saturday also has dayName "Saturday"),
+  // so we combine it with the current week to disambiguate uniquely.
+  // Fall back to timestamp comparison only for old entries missing dayName.
+  const todayExps = expenses.filter(e => {
+    if (e.dayName && e.week) {
+      return e.dayName === todayName && e.week === thisWeekStr;
+    }
+    return new Date(e.ts).toDateString() === todayDate;
+  });
+  const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
+  // Now that expenses[] holds ALL rows (not just current week), filter by week for the week metric
+  const weekExps  = expenses.filter(e => (e.week || "") === thisWeekStr);
+  const weekTotal = weekExps.reduce((s,e) => s+e.amount, 0);
 
-  const ss = (id,val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  };
-
+  const ss = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   ss("grandTotal", "₹" + weekTotal.toLocaleString());
-  ss("m-today", "₹" + todayTotal.toLocaleString());
-  ss("m-week", "₹" + weekTotal.toLocaleString());
-  ss("m-month", "₹" + monthTotal.toLocaleString());
-  ss("m-count", String(monthExps.length));
+  ss("m-today",    "₹" + todayTotal.toLocaleString());
+  ss("m-week",     "₹" + weekTotal.toLocaleString());
+  ss("m-month",    monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString());
+  ss("m-count",    String(monthlyCount === null ? expenses.length : monthlyCount));
 }
 
 function updateBadge() {
@@ -1453,7 +1312,16 @@ function pullFromSheet() {
       // ── Monthly totals (from full remote dataset, all weeks) ──
       const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       function isSameMonth(monthVal) {
-        return normalizeMonthLabel(monthVal) === normalizeMonthLabel(monthLabel(now));
+        if (!monthVal) return false;
+        const str = monthVal.toString().trim();
+        const match = str.match(/^([A-Za-z]{3})-(\d{4})$/);
+        if (match) {
+          const idx = MONTH_NAMES.indexOf(match[1]);
+          return idx === thisMonthNum && parseInt(match[2], 10) === thisYear;
+        }
+        const d = new Date(str);
+        if (!isNaN(d)) return d.getFullYear() === thisYear && d.getMonth() === thisMonthNum;
+        return false;
       }
 
       monthlyTotal = remote
@@ -1699,34 +1567,42 @@ function renderCharts() {
 }
 
 function buildChartData() {
-  const src = chartRange === "week"
-    ? getExpensesForPeriod("week")
-    : getExpensesForPeriod("month");
+  let src = expenses;
+
+  if (chartRange === "month" && chartData) {
+    src = chartData;
+  }
 
   const byCat = {};
-  const byDay = {
-    Mon:0, Tue:0, Wed:0, Thu:0, Fri:0, Sat:0, Sun:0
-  };
+  const byDay = {};
   const byWeek = {};
   let total = 0;
 
   src.forEach(e => {
-    const amount = parseFloat(e.amount) || 0;
-    if (!amount) return;
-
-    total += amount;
+    if (!e.amount) return;
+    total += e.amount;
 
     const cat = e.c || "Other";
-    byCat[cat] = (byCat[cat] || 0) + amount;
+    byCat[cat] = (byCat[cat] || 0) + e.amount;
 
-    const dayName = e.dayName || e.day || "";
-    const dayKey = dayName.slice(0,3);
-    if (Object.prototype.hasOwnProperty.call(byDay, dayKey)) {
-      byDay[dayKey] += amount;
+    // Use stored dayName if available (reliable, computed at log time).
+    // Fall back to dayNumber if available, otherwise reconstruct from ts
+    // as a last resort (unreliable due to timezone issues).
+    let dayKey;
+    if (e.dayName) {
+      dayKey = e.dayName.slice(0, 3); // "Thursday" → "Thu"
+    } else if (e.dayNumber) {
+      // dayNumber is 1-365; derive day of week from it
+      const jan1 = new Date(new Date(e.ts).getFullYear(), 0, 1);
+      const d = new Date(jan1.getTime() + (parseInt(e.dayNumber) - 1) * 86400000);
+      dayKey = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][d.getDay()];
+    } else {
+      dayKey = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][new Date(e.ts).getDay()];
     }
+    byDay[dayKey] = (byDay[dayKey] || 0) + e.amount;
 
     const wk = e.week || "?";
-    byWeek[wk] = (byWeek[wk] || 0) + amount;
+    byWeek[wk] = (byWeek[wk] || 0) + e.amount;
   });
 
   return { byCat, byDay, byWeek, total, count: src.length };
@@ -1861,37 +1737,34 @@ function drawTrend(byWeek) {
 function renderTrendStats(data) {
   const el = document.getElementById("trendStats");
   if (!el) return;
+  const src = chartRange === "month" && chartData ? chartData : expenses;
 
-  const src = chartRange === "week"
-    ? getExpensesForPeriod("week")
-    : getExpensesForPeriod("month");
-
-  const amounts = src.map(e => parseFloat(e.amount) || 0).filter(Boolean);
+  // Highest single entry
+  const amounts = src.map(e => e.amount).filter(Boolean);
   const highest = amounts.length ? Math.max(...amounts) : 0;
 
-  const currentWeekTotal = sumExpenses(getExpensesForPeriod("week"));
+  // Sort weeks for comparison
+  const weeks = Object.entries(data.byWeek)
+    .sort((a,b) => parseInt(a[0].replace("W","")) - parseInt(b[0].replace("W","")));
+
+  // Avg this week per day: this week's total ÷ days elapsed so far this week
+  // Monday = day 0, today = how many days have passed (min 1)
   const now = new Date();
-  const jsDay = now.getDay();
-  const daysElapsed = jsDay === 0 ? 7 : jsDay;
-  const avgThisWeek = Math.round(currentWeekTotal / Math.max(daysElapsed, 1));
+  const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon ... 6=Sat
+  const daysElapsed = dayOfWeek === 0 ? 7 : dayOfWeek; // Sun counts as end of week (7)
+  const thisWeekTotal = weeks.length > 0 ? weeks[weeks.length-1][1] : 0;
+  const avgThisWeek = daysElapsed > 0 ? Math.round(thisWeekTotal / daysElapsed) : 0;
 
-  const currentWeekNo = parseInt(getCurrentPeriod().week.replace("W",""), 10);
-  const previousWeekNo = currentWeekNo - 1;
-  const previousWeekExps = expenses.filter(e =>
-    parseInt(String(e.week || "").replace("W",""), 10) === previousWeekNo
-  );
-
-  const previousWeekTotal = sumExpenses(previousWeekExps);
-  const avgLastWeek = previousWeekExps.length
-    ? Math.round(previousWeekTotal / 7)
-    : null;
+  // Avg last week per day: last week's total ÷ 7
+  const lastWeekTotal = weeks.length >= 2 ? weeks[weeks.length-2][1] : null;
+  const avgLastWeek = lastWeekTotal !== null ? Math.round(lastWeekTotal / 7) : null;
 
   el.innerHTML = [
-    {label:"Highest", val:"₹" + highest.toLocaleString()},
-    {label:"Avg/day this week", val:"₹" + avgThisWeek.toLocaleString()},
-    {label:"Avg/day last week", val:avgLastWeek === null ? "—" : "₹" + avgLastWeek.toLocaleString()}
+    { label: "Highest",          val: "₹" + Math.round(highest).toLocaleString() },
+    { label: "Avg/day this week",val: "₹" + avgThisWeek.toLocaleString() },
+    { label: "Avg/day last week",val: avgLastWeek === null ? "—" : "₹" + avgLastWeek.toLocaleString() }
   ].map(s => `<div style="text-align:center">
-    <div style="font-size:11px;color:var(--muted);margin-bottom:3px">${s.label}</div>
+    <div style="font-size:11px;color:#888;margin-bottom:3px">${s.label}</div>
     <div style="font-size:15px;font-weight:500;color:var(--accent)">${s.val}</div>
   </div>`).join("");
 }
@@ -1906,15 +1779,19 @@ function fetchChartMonthData() {
       const thisYear = now.getFullYear();
       const thisMonthNum = now.getMonth();
       chartData = (data.expenses || [])
-        .filter(r => parseFloat(r.amount) > 0)
-        .filter(r => normalizeMonthLabel(r.month) === normalizeMonthLabel(monthLabel(now)))
+        .filter(r => {
+          if (!r.amount || parseFloat(r.amount) <= 0) return false;
+          const d = new Date(r.month || r.date);
+          if (!isNaN(d)) return d.getFullYear()===thisYear && d.getMonth()===thisMonthNum;
+          return false;
+        })
         .map(r => {
           const recat = categorize(r.raw || "");
           return {
             id: r.id,
             ts: parseSheetDate(r.date),
             week: r.week,
-            month: normalizeMonthLabel(r.month),
+            month: r.month,
             raw: r.raw,
             amount: parseFloat(r.amount) || 0,
             c: r.category || recat.c,
@@ -1942,7 +1819,7 @@ function addExpenseFrom(source) {
 
   const ts = buildTimestamp(selectedLogDate);
   const week     = "W" + getWeekNum(selectedLogDate);
-  const month    = normalizeMonthLabel(monthLabel(selectedLogDate));
+  const month    = monthLabel(selectedLogDate);
   const dayName  = getDayName(selectedLogDate);
   const dayNumber = getDayNumber(selectedLogDate);
   const exp = { ...categorize(raw), id: Date.now(), ts, week, month, dayName, dayNumber };
@@ -1999,24 +1876,23 @@ function setDesktopView(view, btn) {
 function renderDesktop() {
   if (!isDesktop()) return;
 
-  const todayExps = getExpensesForPeriod("today");
-  const weekExps  = getExpensesForPeriod("week");
-  const monthExps = getExpensesForPeriod("month");
+  // Metrics
+  const now = new Date();
+  const todayName = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"][now.getDay()];
+  const thisWeekStr = currentWeekString();
+  const todayExps = expenses.filter(e => e.dayName && e.week
+    ? e.dayName === todayName && e.week === thisWeekStr
+    : new Date(e.ts).toDateString() === now.toDateString());
+  const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
+  const weekTotal  = expenses.reduce((s,e) => s+e.amount, 0);
 
-  const todayTotal = sumExpenses(todayExps);
-  const weekTotal  = sumExpenses(weekExps);
-  const monthTotal = sumExpenses(monthExps);
-
-  const dm = (id,val) => {
-    const el = document.getElementById(id);
-    if (el) el.textContent = val;
-  };
-
+  const dm = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   dm("dm-today", "₹" + todayTotal.toLocaleString());
-  dm("dm-week", "₹" + weekTotal.toLocaleString());
-  dm("dm-month", "₹" + monthTotal.toLocaleString());
-  dm("dm-count", monthExps.length);
+  dm("dm-week",  "₹" + weekTotal.toLocaleString());
+  dm("dm-month", monthlyTotal === null ? "₹—" : "₹" + monthlyTotal.toLocaleString());
+  dm("dm-count", monthlyCount === null ? expenses.length : monthlyCount);
 
+  // Recent list in sidebar
   const rl = document.getElementById("desktopRecentList");
   if (rl) {
     if (!expenses.length) {
@@ -2035,6 +1911,7 @@ function renderDesktop() {
     }
   }
 
+  // Review badge
   const uncat = expenses.filter(e => !e.matched).length;
   const badge = document.getElementById("desktopReviewBadge");
   if (badge) {
@@ -2042,6 +1919,7 @@ function renderDesktop() {
     badge.style.display = uncat > 0 ? "flex" : "none";
   }
 
+  // Refresh current view
   if (desktopView === "analytics") renderDesktopCharts();
   if (desktopView === "rules") renderDesktopRules();
   if (desktopView === "review") renderDesktopReview();
@@ -2334,7 +2212,6 @@ function updateScriptUrlDesktop() {
 }
 
 function initApp() {
-  initThemeToggle();
   const dateStr = new Date().toLocaleDateString("en-IN", {weekday:"long", day:"numeric", month:"short"});
   const dl = document.getElementById("dateLabel");
   if (dl) dl.textContent = dateStr;
