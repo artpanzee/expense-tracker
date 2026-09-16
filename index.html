@@ -1567,11 +1567,13 @@ function renderCharts() {
 }
 
 function buildChartData() {
-  let src = expenses;
+  const thisWeek = currentWeekString();
 
-  if (chartRange === "month" && chartData) {
-    src = chartData;
-  }
+  // Week mode: only current week's rows from local expenses[]
+  // Month mode: full month from chartData (fetched separately)
+  let src = chartRange === "month" && chartData
+    ? chartData
+    : expenses.filter(e => (e.week || "") === thisWeek);
 
   const byCat = {};
   const byDay = {};
@@ -1884,7 +1886,8 @@ function renderDesktop() {
     ? e.dayName === todayName && e.week === thisWeekStr
     : new Date(e.ts).toDateString() === now.toDateString());
   const todayTotal = todayExps.reduce((s,e) => s+e.amount, 0);
-  const weekTotal  = expenses.reduce((s,e) => s+e.amount, 0);
+  const weekExps   = expenses.filter(e => (e.week || "") === thisWeekStr);
+  const weekTotal  = weekExps.reduce((s,e) => s+e.amount, 0);
 
   const dm = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   dm("dm-today", "₹" + todayTotal.toLocaleString());
