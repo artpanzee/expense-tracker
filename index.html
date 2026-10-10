@@ -1417,10 +1417,11 @@ function pullFromSheet() {
       remote.forEach((r, sheetIndex) => {
         if (!r.id) return;
         const recat = categorize(r.raw || "");
+        const resolvedTs = resolveSheetDate(r.date, r.month, r.dayName);
         fromSheet.push({
           id:        r.id,
-          ts:        parseSheetDate(r.date),
-          date:      r.date ? r.date.toString() : "",
+          ts:        resolvedTs,
+          date:      paddedDate(new Date(resolvedTs)),
           week:      r.week,
           month:     r.month,
           sheetOrder: sheetIndex,
@@ -1471,6 +1472,38 @@ function parseSheetDate(dateStr, timeStr) {
     }
   } catch(e) {}
   return new Date().toISOString();
+}
+
+// Google Sheets (US locale) auto-converts "04/09/2026" (4 Sep) into 9 Apr whenever
+// the day is <= 12, so the date coming back from the Sheet can have day and month
+// swapped. The Month label ("Sep-2026") and Day Name are stored as plain text and
+// stay correct, so we use them to pick the right reading.
+const MONTH_ABBR = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"];
+function monthFromLabel(label) {
+  const m = String(label || "").match(/^([A-Za-z]{3})[A-Za-z]*-(\d{4})$/);
+  if (!m) return null;
+  const idx = MONTH_ABBR.indexOf(m[1].toLowerCase());
+  return idx < 0 ? null : { m: idx, y: parseInt(m[2], 10) };
+}
+
+function resolveSheetDate(dateStr, monthLbl, dayName) {
+  const str = dateStr ? dateStr.toString() : "";
+  if (str.split("/").length === 3) return parseSheetDate(str);   // plain DD/MM/YYYY text: already right
+  const t = new Date(str);
+  if (isNaN(t)) return new Date().toISOString();
+  const y = t.getFullYear(), mo = t.getMonth(), d = t.getDate();
+  const cands = [new Date(y, mo, d, 12)];
+  if (d <= 12) cands.push(new Date(y, d - 1, mo + 1, 12));       // day/month swapped reading
+  const lbl = monthFromLabel(monthLbl);
+  if (lbl) {
+    const hit = cands.find(c => c.getMonth() === lbl.m && c.getFullYear() === lbl.y);
+    if (hit) return hit.toISOString();
+  }
+  if (dayName) {
+    const hit = cands.find(c => getDayName(c) === dayName);
+    if (hit) return hit.toISOString();
+  }
+  return cands[0].toISOString();
 }
 
 function setSyncStatus(status) {
@@ -1869,7 +1902,7 @@ function fetchChartMonthData() {
           const recat = categorize(r.raw || "");
           return {
             id: r.id,
-            ts: parseSheetDate(r.date),
+            ts: resolveSheetDate(r.date, r.month, r.dayName),
             week: r.week,
             month: r.month,
             raw: r.raw,
@@ -2456,7 +2489,7 @@ function downloadCSV() {
     .map(e => {
       const d = new Date(e.ts);
       return [
-        e.date || paddedDate(d),
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
         e.raw,
         e.amount,
         e.c,
