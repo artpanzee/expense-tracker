@@ -1169,6 +1169,7 @@ function skipExp(id) {
   if (exp) { exp.matched = "skipped"; exp.c = "Uncategorized"; exp.s = "Manual"; }
   saveExpenses();
   render();
+  if (exp) updateSheetRow(exp);
 }
 
 function deleteExp(id) {
@@ -1418,6 +1419,8 @@ function pullFromSheet() {
         if (!r.id) return;
         const recat = categorize(r.raw || "");
         const resolvedTs = resolveSheetDate(r.date, r.month, r.dayName);
+        // Description column holds only the matched keyword now; old rows may hold the raw text (= unmatched)
+        const sheetMatched = (r.matched && r.matched !== r.raw) ? r.matched : "";
         fromSheet.push({
           id:        r.id,
           ts:        resolvedTs,
@@ -1427,10 +1430,10 @@ function pullFromSheet() {
           sheetOrder: sheetIndex,
           raw:       r.raw,
           amount:    parseFloat(r.amount) || 0,
-          c:         r.category || recat.c,
-          s:         r.sub || recat.s,
+          c:         sheetMatched ? (r.category || recat.c) : recat.c,
+          s:         sheetMatched ? (r.sub || recat.s)      : recat.s,
           e:         recat.e || "💰",
-          matched:   r.matched || recat.matched,
+          matched:   sheetMatched || recat.matched,
           dayName:   r.dayName  || "",
           dayNumber: r.dayNumber || ""
         });
